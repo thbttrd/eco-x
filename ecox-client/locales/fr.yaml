@@ -1,0 +1,156 @@
+# French translations for eco-x (EconoScope)
+# Traductions francaises
+
+app:
+  name: "EconoScope"
+  tagline: "Plateforme de Donnees Economiques"
+  description: "Parcourez et surveillez les sources de donnees et les jeux de donnees des fournisseurs de donnees economiques"
+  copyright: "EconoScope {year} - Plateforme de Donnees Economiques"
+
+nav:
+  data_sources: "Sources de Donnees"
+  datasets: "Jeux de Donnees"
+  news: "Actualites Economiques"
+  main_navigation: "Navigation principale"
+
+sidebar:
+  expand: "Agrandir la barre laterale"
+  collapse: "Reduire la barre laterale"
+  toggle: "Basculer la barre laterale"
+
+status:
+  connecting: "Connexion..."
+  live: "En ligne"
+  disconnected: "Deconnecte"
+  loading: "Chargement..."
+
+sources:
+  title: "Sources de Donnees"
+  add_button: "Ajouter une Source"
+  manage_button: "Gerer les Sources"
+  empty_title: "Aucune Source de Donnees"
+  empty_description: "Aucune source de donnees disponible. Recuperez des donnees avec la CLI pour commencer !"
+  in_db: "en base"
+  available: "disponibles"
+  never_fetched: "Jamais recupere"
+
+datasets:
+  title: "Jeux de Donnees"
+  all_datasets: "Tous les Jeux de Donnees"
+  datasets_for: "Jeux de Donnees {source}"
+  search_placeholder: "Rechercher par code ou nom..."
+  filter_all: "Tous"
+  filter_downloaded: "Telecharges"
+  filter_available: "Disponibles"
+  all_sources: "Toutes les Sources"
+  reset_all: "Reinitialiser"
+  showing_of: "Affichage de {count} sur {total} jeux de donnees"
+  filtered: "(filtre)"
+  available_count: "{total} jeux de donnees disponibles (Page {page} sur {total_pages})"
+  available_simple: "{count} jeu de donnees disponible"
+  available_simple_plural: "{count} jeux de donnees disponibles"
+  empty_title: "Aucun Jeu de Donnees"
+  empty_filtered_title: "Aucun Jeu de Donnees Correspondant"
+  empty_description: "Aucun jeu de donnees pour {source}. Recuperez des donnees avec la CLI !"
+  empty_filtered_description: "Essayez d'ajuster vos criteres de recherche."
+  clear_filters: "Effacer les Filtres"
+  back_to_sources: "Retour aux Sources"
+  view_details: "Voir les Details"
+  view_all_sources: "Voir toutes les sources"
+  never: "Jamais"
+
+table:
+  source: "Source"
+  code: "Code"
+  name: "Nom"
+  status: "Statut"
+  last_fetched: "Derniere Maj"
+  actions: "Actions"
+  previous: "Precedent"
+  next: "Suivant"
+  page_of: "Page {page} sur {total}"
+  page: "Page"
+  datasets: "jeux de donnees"
+  records: "Enregistrements"
+
+modal:
+  close: "Fermer"
+  cancel: "Annuler"
+  validate_close: "Valider et fermer"
+
+dataset_modal:
+  info_title: "Informations du Jeu de Donnees"
+  code: "Code"
+  source: "Source"
+  description: "Description"
+  no_description: "Aucune description disponible"
+  extended_description: "Description Etendue"
+  methodology: "Source originale"
+  read_docs: "Voir sur le site source"
+  read_docs_metadata: "Voir les metadonnees du jeu de donnees sur le site source"
+  nbs_no_url: "Les URLs de jeux de données ne sont pas disponibles pour la source NBS"
+  last_fetched: "Derniere Recuperation"
+  fetch_history: "Historique Recent"
+  no_history: "Aucun historique disponible"
+  records: "enregistrements"
+  download: "Telecharger le jeu de donnees"
+  download_hint: "Telecharge maintenant et met a jour a chaque demarrage"
+  purge: "Purger le jeu de donnees"
+  purge_hint: "Supprime toutes les donnees de ce jeu de donnees"
+  purge_confirm: "Etes-vous sur de vouloir supprimer toutes les donnees de ce jeu de donnees ?"
+  # Legacy keys (kept for backwards compatibility)
+  select: "Selectionner"
+  selected: "Selectionne"
+  select_hint: "Cliquer pour ajouter a la liste"
+  selected_hint: "Sera mis a jour au prochain demarrage"
+
+catalog:
+  title: "Catalogue des Sources"
+  description: "Gerez les sources de donnees - activez/desactivez et ajoutez a votre instance."
+  add: "Ajouter"
+  added: "Ajoute"
+  datasets: "jeux de donnees"
+  api_key_required: "Cle API requise"
+  public_api: "API publique"
+  empty: "Aucune source disponible dans le catalogue."
+  activated: "Active"
+  deactivated: "Desactive"
+  toggle_activation: "Activer/Desactiver"
+
+news:
+  title: "Actualites Economiques"
+  sections_in_categories: "{sections} sections dans {categories} categories"
+  entries_total: "entrees"
+  empty_title: "Aucune Source d'Actualites"
+  empty_description: "Aucune source importee. Verifiez config/news.yaml."
+  recent_entries: "Entrees Recentes"
+  no_entries_yet: "Aucune entree"
+  entries_will_appear: "Les entrees apparaitront ici une fois les sections recuperees"
+  browse_sources: "Parcourir les Sources"
+  sources: "sources"
+  active: "Actif"
+  inactive: "Inactif"
+  pending: "En attente"
+  error: "Erreur"
+  refresh_section: "Actualiser la section"
+  # Modal entree (US-5.12)
+  discovered: "Decouvert"
+  open_original: "Ouvrir l'original"
+  content_preview_only: "Seul un apercu est disponible. Cliquez sur 'Ouvrir l'original' pour lire le contenu complet."
+  no_content_available: "Aucun contenu disponible pour cette entree."
+  entry_not_found: "Entree Non Trouvee"
+  entry_load_error: "L'entree n'a pas pu etre chargee. Elle a peut-etre ete supprimee."
+  no_entries_in_section: "Aucune entree dans cette section"
+
+common:
+  close: "Fermer"
+  load_more: "Charger plus..."
+
+error:
+  load_failed: "Echec du chargement. Veuillez reessayer."
+  generic: "Une erreur s'est produite"
+
+language:
+  en: "English"
+  fr: "Francais"
+  select: "Langue"

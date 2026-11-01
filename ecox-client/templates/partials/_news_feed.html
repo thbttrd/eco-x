@@ -1,0 +1,169 @@
+<!-- News Feed Container (US-5.14) -->
+<div x-data="newsFeed"
+     data-selected-category="{{ selected_category if selected_category else '' }}"
+     data-search="{{ search if search else '' }}"
+     data-entry-ids="{{ entry_ids|tojson if entry_ids else '[]' }}"
+     {% if toast %}data-toast-message="{{ toast.message }}" data-toast-type="{{ toast.type }}"{% endif %}
+     class="h-full flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <div class="flex-shrink-0 mb-4">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('news.title') }}</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {% if total > 0 %}
+                    {{ total }} {{ t('news.entries_total') }}
+                    {% endif %}
+                </p>
+            </div>
+            <!-- Refresh button -->
+            <button
+                type="button"
+                class="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                hx-post="/api/news/fetch"
+                hx-swap="none"
+                title="{{ t('news.refresh') }}"
+            >
+                <svg class="h-5 w-5 htmx-indicator-rotate" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative mb-4">
+            <input
+                type="text"
+                x-model="searchQuery"
+                @input.debounce.300ms="applyFilters()"
+                placeholder="{{ t('news.search_placeholder') }}"
+                class="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <svg class="absolute left-3 top-2.5 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+        </div>
+
+        <!-- Category Filter Chips -->
+        <div class="flex flex-wrap gap-2">
+            <button
+                type="button"
+                @click="selectCategory(null)"
+                :class="selectedCategory === null
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors"
+            >
+                {{ t('news.all_categories') }}
+            </button>
+            {% for category in categories %}
+            <button
+                type="button"
+                @click="selectCategory({{ category.id }})"
+                :class="selectedCategory === {{ category.id }}
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'"
+                class="px-3 py-1.5 text-sm font-medium rounded-full transition-colors"
+            >
+                {{ category.name }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Feed Content Area (master-detail layout) -->
+    <div class="flex-1 flex gap-4 min-h-0 overflow-hidden">
+
+        <!-- Feed Cards (scrollable) -->
+        <div
+            id="feed-cards-container"
+            class="flex-1 overflow-y-auto pr-2"
+            :class="{ 'lg:w-1/2': selectedEntry !== null }"
+        >
+            <div id="feed-cards" class="space-y-3">
+                {% if entries %}
+                {% for entry in entries %}
+                {% include "partials/_news_feed_card.html" %}
+                {% endfor %}
+
+                {% if has_more %}
+                <!-- Infinite scroll sentinel -->
+                <div
+                    hx-get="/api/news/feed/more?offset={{ offset + limit }}{% if selected_category %}&category_id={{ selected_category }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+                    hx-trigger="revealed"
+                    hx-swap="outerHTML"
+                    class="py-4 text-center"
+                >
+                    <div class="inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                        <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {{ t('news.loading_more') }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <!-- Empty state -->
+                <div class="flex flex-col items-center justify-center py-16 px-4">
+                    <svg class="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ t('news.empty_title') }}</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('news.empty_description') }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Detail Panel (US-5.15) -->
+        <div
+            x-show="selectedEntry !== null"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="translate-x-full opacity-0"
+            x-transition:enter-end="translate-x-0 opacity-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="translate-x-0 opacity-100"
+            x-transition:leave-end="translate-x-full opacity-0"
+            @keydown.escape.window="closePanel()"
+            @keydown.arrow-down.window="nextEntry()"
+            @keydown.arrow-up.window="prevEntry()"
+            class="hidden lg:block w-1/2 h-full bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
+        >
+            <div id="detail-panel-content" class="h-full">
+                <!-- Content loaded via htmx -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Detail Panel (full-screen overlay) -->
+    <div
+        x-show="selectedEntry !== null"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
+        @keydown.escape.window="closePanel()"
+        class="lg:hidden fixed inset-0 z-50 bg-white dark:bg-slate-900"
+    >
+        <div id="mobile-detail-panel-content">
+            <!-- Content loaded via htmx -->
+        </div>
+    </div>
+</div>
+
+<style>
+.htmx-request .htmx-indicator-rotate {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>

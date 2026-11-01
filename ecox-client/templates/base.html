@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" x-init="$watch('darkMode', val => localStorage.setItem('darkMode', val))" :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="{% block description %}{{ t('app.description') }}{% endblock %}" />
+
+    <title>{% block title %}{{ t('app.name') }}{% endblock %} - {{ t('app.tagline') }}</title>
+
+    {# Favicon #}
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+
+    {# Tailwind CSS - CDN for development #}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+
+    {# htmx 2.0 with SSE extension (self-hosted for CDN reliability) #}
+    <script src="/static/htmx.min.js"></script>
+    <script src="/static/sse.js"></script>
+
+    {# Fuse.js for fuzzy search (self-hosted) #}
+    <script src="/static/fuse.min.js"></script>
+
+    {# Alpine.js components - must be registered BEFORE Alpine loads #}
+    <script>
+        document.addEventListener('alpine:init', () => {
+            // News Feed component (US-5.14, US-5.15)
+            // Registered globally so it works when loaded via HTMX
+            Alpine.data('newsFeed', () => ({
+                selectedEntry: null,
+                selectedCategory: null,
+                searchQuery: '',
+                entryIds: [],
+                currentIndex: -1,
+
+                init() {
+                    // Initialize from data attributes if present
+                    const el = this.$el;
+                    if (el.dataset.selectedCategory) {
+                        this.selectedCategory = parseInt(el.dataset.selectedCategory);
+                    }
+                    if (el.dataset.search) {
+                        this.searchQuery = el.dataset.search;
+                    }
+                    if (el.dataset.entryIds) {
+                        try {
+                            this.entryIds = JSON.parse(el.dataset.entryIds);
+                        } catch (e) {
+                            console.warn('Failed to parse entry IDs:', e);
+                        }
+                    }
+                    // Dispatch toast notification if present (via data attributes for HTMX compatibility)
+                    if (el.dataset.toastMessage) {
+                        window.dispatchEvent(new CustomEvent('show-toast', {
+                            detail: { message: el.dataset.toastMessage, type: el.dataset.toastType || 'info' }
+                        }));
+                        // Clean up to prevent re-triggering
+                        delete el.dataset.toastMessage;
+                        delete el.dataset.toastType;
+                    }
+                },
+
+                selectEntry(entryId) {
+                    this.selectedEntry = entryId;
+                    this.currentIndex = this.entryIds.indexOf(entryId);
+
+                    // Load detail panel content
+                    htmx.ajax('GET', `/api/news/entries/${entryId}/panel`, {
+                        target: '#detail-panel-content',
+                        swap: 'innerHTML'
+                    });
+
+                    // Also load mobile panel
+                    htmx.ajax('GET', `/api/news/entries/${entryId}/panel?mobile=true`, {
+                        target: '#mobile-detail-panel-content',
+                        swap: 'innerHTML'
+                    });
+                },
+
+                closePanel() {
+                    this.selectedEntry = null;
+                    this.currentIndex = -1;
+                },
+
+                nextEntry() {
+                    if (this.selectedEntry === null) return;
+                    if (this.currentIndex < this.entryIds.length - 1) {
+                        this.selectEntry(this.entryIds[this.currentIndex + 1]);
+                    }
+                },
+
+                prevEntry() {
+                    if (this.selectedEntry === null) return;
+                    if (this.currentIndex > 0) {
+                        this.selectEntry(this.entryIds[this.currentIndex - 1]);
+                    }
+                },
+
+                selectCategory(categoryId) {
+                    this.selectedCategory = categoryId;
+                    this.applyFilters();
+                },
+
+                applyFilters() {
+                    const params = new URLSearchParams();
+                    if (this.selectedCategory !== null) {
+                        params.set('category_id', this.selectedCategory);
+                    }
+                    if (this.searchQuery) {
+                        params.set('search', this.searchQuery);
+                    }
+
+                    const url = '/api/news/feed' + (params.toString() ? '?' + params.toString() : '');
+                    htmx.ajax('GET', url, {
+                        target: '#news-container',
+                        swap: 'innerHTML'
+                    });
+                }
+            }));
+        });
+    </script>
+
+    {# Alpine.js 3.x for client-side interactivity #}
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    {# Page-specific head content #}
+    {% block extra_head %}{% endblock %}
+
+    <style>
+        /* Alpine.js cloak - hide elements until Alpine initializes */
+        [x-cloak] { display: none !important; }
+
+        /* htmx loading indicator */
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator,
+        .htmx-request.htmx-indicator {
+            display: inline-block;
+        }
+
+        /* Safe area for iOS devices with notch/home indicator */
+        .safe-area-inset-bottom {
+            padding-bottom: env(safe-area-inset-bottom, 0);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100 antialiased">
+
+    {# Header #}
+    <header class="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm sticky top-0 z-40">
+        <div class="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-2xl font-bold text-blue-600 dark:text-blue-400">{{ t('app.name') }}</h1>
+                    <span class="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded">v{{ version }}</span>
+                </div>
+                <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('app.tagline') }}</p>
+            </div>
+
+            <div class="flex items-center gap-4">
+                {# Dark mode toggle #}
+                <button @click="darkMode = !darkMode"
+                        class="flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        :title="darkMode ? 'Switch to light mode' : 'Switch to dark mode'">
+                    {# Sun icon (shown in dark mode) #}
+                    <svg x-show="darkMode" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    {# Moon icon (shown in light mode) #}
+                    <svg x-show="!darkMode" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+
+                {# Language switcher #}
+                <div x-data="{
+                    open: false,
+                    switchLang(lang) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('lang', lang);
+                        window.location.href = url.toString();
+                    }
+                }" class="relative">
+                    <button @click="open = !open"
+                            class="flex items-center gap-1 px-2 py-1 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="font-medium">{{ current_lang|upper }}</span>
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div x-show="open" @click.away="open = false"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-75"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95"
+                         class="absolute right-0 mt-2 w-32 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50">
+                        <button @click="switchLang('en')" class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 {{ 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' if current_lang == 'en' else 'text-slate-700 dark:text-slate-300' }}">
+                            <span class="font-medium">EN</span>
+                            <span>{{ t('language.en') }}</span>
+                        </button>
+                        <button @click="switchLang('fr')" class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 {{ 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' if current_lang == 'fr' else 'text-slate-700 dark:text-slate-300' }}">
+                            <span class="font-medium">FR</span>
+                            <span>{{ t('language.fr') }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                {# Connection status indicator #}
+                <div id="connection-status" class="flex items-center gap-2">
+                    <div class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ t('status.connecting') }}</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    {# Main content area - flex container for sidebar pages #}
+    <div id="app-container" class="flex-1 flex overflow-hidden">
+        {% block content %}{% endblock %}
+    </div>
+
+    {# Footer - hidden on mobile where bottom nav is shown #}
+    <footer class="hidden md:block border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-6">
+        <div class="mx-auto max-w-7xl px-4 text-center text-sm text-slate-600 dark:text-slate-400">
+            <p>{{ t('app.name') }} &copy; 2025 - {{ t('app.tagline') }}</p>
+        </div>
+    </footer>
+
+    {# Toast notification container (Alpine.js) #}
+    <div id="toast-container"
+         x-data="{ toasts: [] }"
+         class="fixed bottom-4 right-4 z-50 space-y-2"
+         @show-toast.window="toasts.push($event.detail); setTimeout(() => toasts.shift(), 5000)">
+        <template x-for="(toast, index) in toasts" :key="index">
+            <div x-show="true"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="translate-x-full opacity-0"
+                 x-transition:enter-end="translate-x-0 opacity-100"
+                 x-transition:leave="transition ease-in duration-200"
+                 x-transition:leave-start="translate-x-0 opacity-100"
+                 x-transition:leave-end="translate-x-full opacity-0"
+                 class="flex items-center gap-3 rounded-lg border px-4 py-3 shadow-lg max-w-sm"
+                 :class="{
+                     'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/50': toast.type === 'success',
+                     'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/50': toast.type === 'error',
+                     'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/50': toast.type === 'info'
+                 }">
+                <div class="flex-1">
+                    <p class="text-sm font-medium"
+                       :class="{
+                           'text-green-800 dark:text-green-200': toast.type === 'success',
+                           'text-red-800 dark:text-red-200': toast.type === 'error',
+                           'text-blue-800 dark:text-blue-200': toast.type === 'info'
+                       }"
+                       x-text="toast.message"></p>
+                </div>
+                <button @click="toasts.splice(index, 1)"
+                        class="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </template>
+    </div>
+
+    {# Global htmx loading indicator #}
+    <div id="global-spinner" class="htmx-indicator fixed right-4 top-20 z-50">
+        <div class="flex items-center gap-2 rounded-lg bg-white dark:bg-slate-800 px-4 py-2 shadow-lg border border-slate-200 dark:border-slate-700">
+            <div class="animate-spin h-5 w-5 rounded-full border-2 border-blue-500 dark:border-blue-400 border-t-transparent"></div>
+            <span class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ t('status.loading') }}</span>
+        </div>
+    </div>
+
+    {# i18n: Expose translations to JavaScript #}
+    <script>
+        window.i18n = {
+            lang: "{{ current_lang }}",
+            t: {
+                "status.connecting": "{{ t('status.connecting') }}",
+                "status.live": "{{ t('status.live') }}",
+                "status.disconnected": "{{ t('status.disconnected') }}",
+                "status.loading": "{{ t('status.loading') }}",
+                "error.load_failed": "{{ t('error.load_failed') }}",
+                "error.generic": "{{ t('error.generic') }}"
+            }
+        };
+
+        // Helper function to get translation
+        function t(key) {
+            return window.i18n.t[key] || key;
+        }
+    </script>
+
+    {# Configure htmx #}
+    <script>
+        // htmx configuration
+        htmx.config.defaultSwapStyle = 'innerHTML';
+        htmx.config.defaultSwapDelay = 0;
+        htmx.config.defaultSettleDelay = 20;
+        htmx.config.selfRequestsOnly = true;  // Security: only same-domain requests
+
+        // Global error handler
+        document.addEventListener('htmx:responseError', (event) => {
+            console.error('htmx error:', event.detail);
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: {
+                    message: t('error.load_failed'),
+                    type: 'error'
+                }
+            }));
+        });
+
+        // Reinitialize Alpine.js on HTMX-loaded content
+        // This is required for dynamically loaded components to work
+        document.addEventListener('htmx:afterSwap', (event) => {
+            // Find all uninitialized Alpine elements in the swapped content
+            const target = event.detail.target;
+            if (target && window.Alpine) {
+                // Initialize Alpine on the new content
+                Alpine.initTree(target);
+            }
+        });
+
+        // Show loading indicator during requests
+        document.addEventListener('htmx:beforeRequest', () => {
+            document.getElementById('global-spinner').classList.add('htmx-request');
+        });
+
+        document.addEventListener('htmx:afterRequest', () => {
+            document.getElementById('global-spinner').classList.remove('htmx-request');
+        });
+    </script>
+
+    {# Page-specific scripts #}
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

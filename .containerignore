@@ -1,0 +1,69 @@
+# =============================================================================
+# .containerignore - Exclude files from container build context
+# =============================================================================
+
+# Git
+.git/
+.gitignore
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment files (secrets mounted at runtime)
+.env
+.env.*
+!.env.example
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+tests/
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Claude Code / Development tools
+.claude/
+.ruff_cache/
+.mypy_cache/
+.gemini-clipboard/
+.playwright-mcp/
+
+# Data files (mounted as volume at runtime)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Documentation (not needed in container)
+docs/
+README.md
+CHANGELOG.md
+CLAUDE.md
+llm/
+
+# CI/CD
+.github/
+
+# Server-side deployment scripts
+deploy/

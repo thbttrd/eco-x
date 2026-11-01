@@ -1,0 +1,241 @@
+[build-system]
+requires = ["setuptools>=75.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []  # No packages in root - actual packages are in ecox-*/
+
+[project]
+name = "eco-x"
+version = "1.21.0"
+description = "Economic data fetching and analysis tool"
+requires-python = ">=3.12"
+authors = [
+    { name = "Thibaut Troude" }
+]
+dependencies = [
+    "httpx>=0.27.0", # Async HTTP client
+    "tenacity>=8.3.0", # Retry with exponential backoff
+    "aiolimiter>=1.1.0", # Async rate limiting
+    "sqlmodel>=0.0.24", # SQLAlchemy + Pydantic (FastAPI ready)
+    "aiosqlite>=0.20.0", # Async SQLite support
+    "greenlet>=3.0.0", # Required for SQLAlchemy async operations
+    "pydantic>=2.8.0", # Data validation
+    "pydantic-settings>=2.3.0", # Settings management
+    "pandas>=2.2.0", # Data processing
+    "structlog>=24.0.0", # Structured logging
+    "typer>=0.12.0", # CLI framework
+    "rich>=13.7.0", # Rich terminal output
+    "fastapi>=0.115.0", # FastAPI web framework
+    "jinja2>=3.1.0", # Template engine
+    "uvicorn[standard]>=0.32.0", # ASGI server
+    "sse-starlette>=2.2.0", # Server-Sent Events for FastAPI
+    "pyyaml>=6.0.3",
+    "defusedxml>=0.7.1",
+    "python-multipart>=0.0.20",
+    "alembic>=1.14.0", # Database migrations
+    "asyncpg>=0.31.0",
+    "psutil>=5.9.0", # System resource monitoring for cache
+]
+
+# Note: No build-system - this is a workspace root, not a buildable package.
+# The actual packages are in ecox-data-platform/, ecox-client/, and ecox-shared/.
+
+[tool.uv.workspace]
+members = ["ecox-data-platform", "ecox-client", "ecox-shared", "ecox-agents"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-bdd>=7.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-mock>=3.14.0",
+    "pytest-httpx>=0.30.0", # Mock httpx requests
+    "factory-boy>=3.3.0", # Test data factories
+    "ruff>=0.5.0", # Fast linter and formatter
+    "pyright>=1.1.390", # Type checking (faster than mypy, native Pydantic v2/SQLAlchemy 2.x support)
+    "pre-commit>=4.0.0", # Git hooks framework
+    "bandit[toml]>=1.7.0", # Security vulnerability scanner
+    "safety>=3.0.0", # Dependency vulnerability checker
+    "interrogate>=1.7.0", # Docstring coverage checker
+    "python-semantic-release>=10.0.0", # Semantic versioning automation
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Run tests per-package to avoid conftest collisions
+testpaths = [
+    "ecox-data-platform/tests/bdd",
+    "ecox-client/tests/bdd",
+    "ecox-shared/tests/bdd",
+]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "epic_1: Data Source Browsing",
+    "epic_2: Dataset Discovery",
+    "epic_3: Real-Time Updates",
+    "epic_4: Auto Refresh",
+    "epic_5: News Aggregation",
+    "epic_6: Eurostat Fetching",
+    "epic_7: FRED Fetching",
+    "epic_9: Storage History",
+    "epic_10: Source Management",
+    "epic_11: Internationalization",
+    "epic_12: Performance",
+    "epic_13: Migrations",
+    "api: API endpoint tests",
+    "ui: UI/template tests",
+    "slow: Long-running tests",
+    "wip: Work in progress",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.pyright]
+pythonVersion = "3.12"
+pythonPlatform = "Linux"
+
+# Include source directories for type checking
+include = [
+    "ecox-data-platform/src",
+    "ecox-client/src",
+    "ecox-shared/src",
+    "ecox-agents/src"
+]
+
+# Extra paths for import resolution (monorepo workspace)
+extraPaths = [
+    "ecox-shared/src",
+    "ecox-data-platform/src",
+    "ecox-client/src",
+    "ecox-agents/src"
+]
+
+# Exclude tests and build artifacts
+exclude = [
+    "**/tests/**",
+    "**/__pycache__",
+    "**/.venv",
+    "**/node_modules"
+]
+
+# Use strict mode (equivalent to mypy strict=true)
+typeCheckingMode = "strict"
+
+# Relax for missing stubs (feedparser, lxml lack type stubs)
+reportMissingTypeStubs = "warning"
+
+# Let ruff handle these (avoid duplicate warnings)
+reportUnusedImport = "none"
+reportUnusedVariable = "none"
+
+# Disable SQLModel/SQLAlchemy type inference issues (library stub gaps, not code issues)
+# These are false positives due to incomplete type stubs in SQLModel
+reportUnknownMemberType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownVariableType = "none"
+reportUnknownParameterType = "none"
+reportUnknownLambdaType = "none"
+
+# SQLModel __tablename__ assignments cause false positives (pyright expects declared_attr)
+reportAssignmentType = "none"
+
+# SQLModel Config class inheritance causes false positives
+reportIncompatibleVariableOverride = "none"
+
+# Keep important type safety checks enabled
+reportGeneralTypeIssues = "error"
+reportOptionalMemberAccess = "error"
+reportOptionalCall = "error"
+reportOptionalIterable = "error"
+reportOptionalContextManager = "error"
+reportOptionalOperand = "error"
+
+# Deprecation warnings as warnings (not errors)
+reportDeprecated = "warning"
+
+# Help identify stale type ignores during migration
+reportUnnecessaryTypeIgnoreComment = "warning"
+
+[tool.bandit]
+# Security linter configuration
+exclude_dirs = ["tests", ".venv", "htmlcov"]
+skips = [
+    "B101",  # assert_used - we use asserts in tests
+]
+# Severity levels: low, medium, high
+severity = "medium"
+
+[tool.interrogate]
+# Docstring coverage configuration
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = false
+fail-under = 95  # Require 95% docstring coverage
+exclude = ["setup.py", "docs", "build", "tests"]
+ignore-regex = ["^get$", "^post$", "^put$", "^patch$", "^delete$"]
+verbose = 1
+quiet = false
+whitelist-regex = []
+color = true
+omit-covered-files = false
+
+# Semantic Release Configuration
+# https://python-semantic-release.readthedocs.io/en/latest/configuration.html
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+commit_message = "chore(release): {version}"
+commit_parser = "conventional"
+tag_format = "v{version}"
+upload_to_pypi = false
+upload_to_release = true
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor", "style", "test"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
+[tool.semantic_release.changelog]
+mode = "update"
+exclude_commit_patterns = ["^Merge pull request", "^Merge branch"]
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+output_format = "md"
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }

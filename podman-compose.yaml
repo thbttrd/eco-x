@@ -1,0 +1,137 @@
+# podman-compose.yaml
+# Orchestration for ecox data platform and client
+#
+# Usage:
+#   podman-compose up -d          # Start all services
+#   podman-compose logs -f        # View logs
+#   podman-compose down           # Stop all services
+#   podman-compose down -v        # Stop and remove volumes
+#
+# Multi-instance deployment:
+#   Set ECOX_SUFFIX=-1 (or -2, -3, etc.) in .env for isolated stacks
+#   Each instance gets unique container names, ports, and volumes
+#   Leave ECOX_SUFFIX empty (or unset) for the main instance
+
+version: "3.8"
+
+services:
+  # PostgreSQL database for the platform
+  postgres:
+    image: docker.io/library/postgres:18
+    container_name: ecox-postgres${ECOX_SUFFIX:-}
+    environment:
+      POSTGRES_USER: ecox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecox_dev_password}
+      POSTGRES_DB: ecox_platform
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "${ECOX_POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecox -d ecox_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Data platform service
+  platform:
+    build:
+      context: .
+      dockerfile: ecox-data-platform/Containerfile
+    container_name: ecox-platform${ECOX_SUFFIX:-}
+    environment:
+      ECOX_DATABASE_URL: postgresql+asyncpg://ecox:${POSTGRES_PASSWORD:-ecox_dev_password}@postgres:5432/ecox_platform
+      ECOX_LOG_LEVEL: INFO
+      # Source rate limits (optional overrides)
+      # ECOX_EUROSTAT_RATE_LIMIT: 2.0
+      ECOX_FRED_API_KEY: ${ECOX_FRED_API_KEY}
+    volumes:
+      - ./config:/app/config:ro
+    ports:
+      - "${ECOX_PLATFORM_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Web UI client
+  client:
+    build:
+      context: .
+      dockerfile: ecox-client/Containerfile
+      args:
+        # Version is read from pyproject.toml - see CLAUDE.md for build instructions
+        ECOX_VERSION: ${ECOX_VERSION:-unknown}
+    container_name: ecox-client${ECOX_SUFFIX:-}
+    environment:
+      ECOX_CLIENT_PLATFORM_URL: http://platform:8000
+      ECOX_CLIENT_DATABASE_URL: sqlite+aiosqlite:///./data/ecox_client.db
+      ECOX_CLIENT_LOG_LEVEL: INFO
+    ports:
+      - "${ECOX_CLIENT_PORT:-8080}:8080"
+    volumes:
+      - client_data:/app/data
+    depends_on:
+      platform:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Redis for conversation memory
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: ecox-redis${ECOX_SUFFIX:-}
+    ports:
+      - "${ECOX_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # AI Agents service
+  agents:
+    build:
+      context: .
+      dockerfile: ecox-agents/Containerfile
+    container_name: ecox-agents${ECOX_SUFFIX:-}
+    environment:
+      ECOX_AGENTS_PLATFORM_URL: http://platform:8000
+      ECOX_AGENTS_DATABASE_URL: postgresql+asyncpg://ecox:${POSTGRES_PASSWORD:-ecox_dev_password}@postgres:5432/ecox_platform
+      ECOX_AGENTS_REDIS_URL: redis://redis:6379/0
+      ECOX_AGENTS_ANTHROPIC_API_KEY: ${ECOX_AGENTS_ANTHROPIC_API_KEY}
+      ECOX_AGENTS_LOG_LEVEL: INFO
+    ports:
+      - "${ECOX_AGENTS_PORT:-8001}:8001"
+    depends_on:
+      platform:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: ecox_postgres_data${ECOX_SUFFIX:-}
+  client_data:
+    name: ecox_client_data${ECOX_SUFFIX:-}
+  redis_data:
+    name: ecox_redis_data${ECOX_SUFFIX:-}

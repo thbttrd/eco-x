@@ -1,0 +1,47 @@
+<!-- Entries list loaded via htmx (US-5.11) -->
+{% if entries %}
+<div class="pl-4 border-l border-slate-200 dark:border-slate-700">
+    <ul class="divide-y divide-slate-50 dark:divide-slate-800">
+        {% for entry in entries %}
+        <li class="group">
+            <button
+                type="button"
+                class="w-full text-left px-2 py-1.5 text-xs hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                hx-get="/api/news/entries/{{ entry.id }}"
+                hx-target="#modal-container"
+                hx-swap="innerHTML"
+            >
+                <div class="flex items-center gap-2">
+                    <!-- Entry icon -->
+                    <svg class="h-3 w-3 text-slate-400 dark:text-slate-500 group-hover:text-blue-500 dark:group-hover:text-blue-400 flex-shrink-0 transition-colors"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+
+                    <!-- Title -->
+                    <span class="flex-1 text-slate-700 dark:text-slate-300 group-hover:text-blue-700 dark:group-hover:text-blue-400 truncate transition-colors">
+                        {{ entry.title }}
+                    </span>
+
+                    <!-- Date -->
+                    {% if entry.published_at %}
+                    <span class="text-slate-400 dark:text-slate-500 flex-shrink-0">
+                        {{ entry.published_at.strftime('%b %d') }}
+                    </span>
+                    {% elif entry.discovered_at %}
+                    <span class="text-slate-400 dark:text-slate-500 flex-shrink-0">
+                        {{ entry.discovered_at.strftime('%b %d') }}
+                    </span>
+                    {% endif %}
+                </div>
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% else %}
+<div class="px-4 py-3 text-center">
+    <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('news.no_entries_in_section') }}</p>
+</div>
+{% endif %}

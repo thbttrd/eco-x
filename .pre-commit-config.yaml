@@ -1,0 +1,131 @@
+# Pre-commit hooks for code quality and security using uv
+# Install: pre-commit install --hook-type pre-commit --hook-type pre-push --hook-type commit-msg
+# Run manually: pre-commit run --all-files
+#
+# All hooks use 'uv run' to leverage the project's virtual environment
+
+repos:
+  # ====================
+  # PRE-COMMIT HOOKS
+  # ====================
+  # Fast checks that run on every commit
+
+  # Built-in file hygiene checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        exclude: ^uv\.lock$
+      - id: end-of-file-fixer
+        name: Fix end of files
+        exclude: ^uv\.lock$
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-toml
+        name: Check TOML syntax
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: debug-statements
+        name: Check for debug statements
+
+  # All Python quality checks use local hooks with 'uv run'
+  # UV_FROZEN=1 prevents uv from modifying uv.lock during hook runs
+  - repo: local
+    hooks:
+      # Ruff format - Auto-format Python code
+      - id: ruff-format
+        name: Format code with ruff
+        entry: env UV_FROZEN=1 uv run ruff format
+        language: system
+        types: [python]
+        require_serial: true
+
+      # Ruff check - Fast linting
+      - id: ruff-check
+        name: Lint code with ruff
+        entry: env UV_FROZEN=1 uv run ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+
+      # Pyright - Static type checking (faster than mypy, native Pydantic v2/SQLAlchemy 2.x support)
+      - id: pyright
+        name: Type check with pyright
+        entry: env UV_FROZEN=1 uv run pyright
+        language: system
+        types: [python]
+        require_serial: true
+        pass_filenames: false
+
+      # Bandit - Security vulnerability scanner
+      - id: bandit
+        name: Security scan with bandit
+        entry: env UV_FROZEN=1 uv run bandit
+        language: system
+        types: [python]
+        args: [-c, pyproject.toml, -r, ecox-data-platform/src, ecox-client/src, ecox-shared/src]
+        pass_filenames: false
+
+      # Interrogate - Docstring coverage checker
+      - id: interrogate
+        name: Check docstring coverage
+        entry: env UV_FROZEN=1 uv run interrogate
+        language: system
+        types: [python]
+        args: [-c, pyproject.toml, ecox-data-platform/src, ecox-client/src, ecox-shared/src]
+        pass_filenames: false
+
+  # ====================
+  # COMMIT-MSG HOOKS
+  # ====================
+  # Validate commit message format
+
+  # Conventional Commits - Enforce commit message format for semantic-release
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Validate conventional commit message
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - docs
+          - style
+          - refactor
+          - perf
+          - test
+          - build
+          - ci
+          - chore
+          - revert
+
+  # ====================
+  # PRE-PUSH HOOKS
+  # ====================
+  # Heavy checks that run only before pushing
+
+  - repo: local
+    hooks:
+      # Pytest - Run full test suite per-package (avoids conftest collisions)
+      - id: pytest
+        name: Run pytest with coverage
+        entry: bash -c 'cd ecox-data-platform && UV_FROZEN=1 uv run pytest tests/bdd/ -q && cd ../ecox-client && UV_FROZEN=1 uv run pytest tests/bdd/ -q && cd ../ecox-shared && UV_FROZEN=1 uv run pytest tests/bdd/ -q'
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Safety - Check dependencies for known vulnerabilities
+      # Note: Disabled - safety CLI now requires authentication
+      # To use locally: safety login && safety scan
+      # - id: safety
+      #   name: Check dependencies with safety
+      #   entry: uv run safety scan --output=screen --continue-on-error
+      #   language: system
+      #   pass_filenames: false
+      #   stages: [pre-push]

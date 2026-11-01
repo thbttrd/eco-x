@@ -1,0 +1,243 @@
+<!-- Modal header -->
+<div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800 sticky top-0 z-10">
+    <div class="flex items-start justify-between">
+        <div class="flex-1 pr-8">
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">{{ dataset.name }}</h2>
+            <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                <span class="font-mono font-medium">{{ dataset.code }}</span>
+                <span class="text-slate-400 dark:text-slate-500">•</span>
+                <span>{{ dataset.source.replace('_', ' ').title() }}</span>
+            </div>
+        </div>
+        <button
+            onclick="window.dispatchEvent(new CustomEvent('close-modal'))"
+            class="flex-shrink-0 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- Modal body -->
+<div class="px-6 py-6 space-y-6 max-h-[calc(90vh-8rem)] overflow-y-auto">
+    <!-- Dataset metadata -->
+    <div>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-4">{{ t('dataset_modal.info_title') }}</h3>
+        <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.code') }}</dt>
+                <dd class="text-sm text-slate-900 dark:text-slate-100 font-mono font-medium">{{ dataset.code }}</dd>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.source') }}</dt>
+                <dd class="text-sm text-slate-900 dark:text-slate-100 font-medium">{{ dataset.source.replace('_', ' ').title() }}</dd>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.description') }}</dt>
+                <dd class="text-sm text-slate-900 dark:text-slate-100">
+                    {{ dataset.description if dataset.description else t('dataset_modal.no_description') }}
+                </dd>
+            </div>
+            {% if description_html %}
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.extended_description') }}</dt>
+                <dd class="text-sm">
+                    <div class="prose prose-sm dark:prose-invert max-w-none text-slate-600 dark:text-slate-400">
+                        {{ description_html | safe }}
+                    </div>
+                </dd>
+            </div>
+            {% endif %}
+            {% if metadata_url %}
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.methodology') }}</dt>
+                <dd class="text-sm">
+                    <a href="{{ metadata_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1">
+                        {% if dataset.source == 'oecd' %}
+                            {{ t('dataset_modal.read_docs_metadata') }}
+                        {% else %}
+                            {{ t('dataset_modal.read_docs') }}
+                        {% endif %}
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                    </a>
+                </dd>
+            </div>
+            {% elif dataset.source == 'nbs' %}
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.methodology') }}</dt>
+                <dd class="text-sm text-slate-500 dark:text-slate-400 italic">
+                    {{ t('dataset_modal.nbs_no_url') }}
+                </dd>
+            </div>
+            {% endif %}
+            <div class="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                <dt class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{{ t('dataset_modal.last_fetched') }}</dt>
+                <dd class="text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <svg class="h-4 w-4 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {% if dataset.last_fetched %}
+                        <time>{{ dataset.last_fetched.strftime('%Y-%m-%d %H:%M:%S') }}</time>
+                    {% else %}
+                        <span class="text-slate-400 dark:text-slate-500">{{ t('datasets.never') }}</span>
+                    {% endif %}
+                </dd>
+            </div>
+        </dl>
+    </div>
+
+    <!-- Fetch history -->
+    {% if fetch_logs %}
+    <div>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-4">{{ t('dataset_modal.fetch_history') }}</h3>
+        <div class="space-y-2">
+            {% for log in fetch_logs %}
+            <div class="flex items-center justify-between py-3 px-4 rounded-lg border
+                        {% if log.status == 'success' %}
+                            bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800
+                        {% else %}
+                            bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800
+                        {% endif %}">
+                <!-- Left side: status and timestamp -->
+                <div class="flex items-center gap-3">
+                    <!-- Status icon -->
+                    <div class="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center
+                                {% if log.status == 'success' %}
+                                    bg-green-200 dark:bg-green-800 text-green-700 dark:text-green-300
+                                {% else %}
+                                    bg-red-200 dark:bg-red-800 text-red-700 dark:text-red-300
+                                {% endif %}">
+                        {% if log.status == 'success' %}
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        {% else %}
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        {% endif %}
+                    </div>
+
+                    <!-- Timestamp -->
+                    <div class="flex flex-col">
+                        <time class="text-sm font-medium
+                                    {% if log.status == 'success' %}
+                                        text-green-900 dark:text-green-200
+                                    {% else %}
+                                        text-red-900 dark:text-red-200
+                                    {% endif %}">
+                            {{ log.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </time>
+                        {% if log.error_message %}
+                        <span class="text-xs text-red-700 dark:text-red-400 mt-0.5">{{ log.error_message[:50] }}...</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Right side: stats -->
+                <div class="flex items-center gap-4 text-sm">
+                    <!-- Status badge -->
+                    <span class="px-2 py-1 rounded-md font-semibold uppercase tracking-wide text-xs
+                                {% if log.status == 'success' %}
+                                    bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200
+                                {% else %}
+                                    bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200
+                                {% endif %}">
+                        {{ log.status }}
+                    </span>
+
+                    <!-- Records count -->
+                    <span class="flex items-center gap-1
+                                {% if log.status == 'success' %}
+                                    text-green-700 dark:text-green-400
+                                {% else %}
+                                    text-red-700 dark:text-red-400
+                                {% endif %}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span class="font-medium">{{ log.records_fetched or 0 }}</span>
+                        <span class="text-xs">{{ t('dataset_modal.records') }}</span>
+                    </span>
+
+                    <!-- Duration -->
+                    <span class="flex items-center gap-1
+                                {% if log.status == 'success' %}
+                                    text-green-600 dark:text-green-400
+                                {% else %}
+                                    text-red-600 dark:text-red-400
+                                {% endif %}">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {% if log.duration_seconds %}
+                            <span class="font-medium">{{ '%.1f'|format(log.duration_seconds) }}s</span>
+                        {% else %}
+                            <span class="text-xs">N/A</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider mb-4">{{ t('dataset_modal.fetch_history') }}</h3>
+        <div class="flex flex-col items-center justify-center py-8 px-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <svg class="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('dataset_modal.no_history') }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal footer -->
+<div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+    <div class="flex items-center justify-between gap-3">
+        <!-- Download/Purge action -->
+        <div class="flex items-center gap-3">
+            {% if is_downloaded %}
+                <!-- Purge button for downloaded datasets -->
+                <button
+                    hx-delete="/api/datasets/{{ dataset.source }}/{{ dataset.code }}/purge"
+                    hx-target="#modal-content"
+                    hx-swap="innerHTML"
+                    hx-confirm="{{ t('dataset_modal.purge_confirm') }}"
+                    class="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors
+                           bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-700 hover:bg-red-200 dark:hover:bg-red-900/70">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    {{ t('dataset_modal.purge') }}
+                </button>
+                <span class="text-xs text-red-600 dark:text-red-400">{{ t('dataset_modal.purge_hint') }}</span>
+            {% else %}
+                <!-- Download button for non-downloaded datasets -->
+                <button
+                    hx-post="/api/datasets/{{ dataset.source }}/{{ dataset.code }}/download"
+                    hx-target="#modal-content"
+                    hx-swap="innerHTML"
+                    class="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors
+                           bg-blue-600 dark:bg-blue-700 text-white border border-blue-600 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    {{ t('dataset_modal.download') }}
+                </button>
+                <span class="text-xs text-slate-500 dark:text-slate-400">{{ t('dataset_modal.download_hint') }}</span>
+            {% endif %}
+        </div>
+        <!-- Close button -->
+        <button
+            onclick="window.dispatchEvent(new CustomEvent('close-modal'))"
+            class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+            {{ t('modal.close') }}
+        </button>
+    </div>
+</div>

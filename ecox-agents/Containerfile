@@ -1,0 +1,48 @@
+# ecox-agents Containerfile
+# Multi-stage build for minimal production image
+
+# Build stage
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install uv for fast dependency management
+RUN pip install uv
+
+# Copy agent package
+COPY ecox-agents/pyproject.toml /build/ecox-agents/
+COPY ecox-agents/src/ /build/ecox-agents/src/
+
+# Install dependencies
+WORKDIR /build/ecox-agents
+RUN uv pip install --system --no-cache-dir .
+
+# Production stage
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+
+# Copy application code
+COPY ecox-agents/src/ /app/src/
+RUN chmod -R a+rX /app/src
+
+# Set Python path
+ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1
+
+# Create non-root user
+RUN useradd --create-home appuser
+USER appuser
+
+# Expose port
+EXPOSE 8001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8001/health')" || exit 1
+
+# Run the application
+CMD ["python", "-m", "uvicorn", "ecox_agents.main:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -1,0 +1,918 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t('app.name') }}{% endblock %}
+
+{% block description %}{{ t('app.description') }}{% endblock %}
+
+{% block content %}
+
+<!-- Main Layout with Sidebar (Alpine.js state) -->
+<div x-data="{
+    activeTab: new URLSearchParams(window.location.search).get('tab') || 'sources',
+    selectedSource: null,
+
+    // Sidebar state
+    sidebarExpanded: localStorage.getItem('ecox_sidebar_expanded') !== 'false',
+    sidebarHovered: false,
+
+    // Computed sidebar width
+    get sidebarOpen() {
+        return this.sidebarExpanded || this.sidebarHovered;
+    },
+
+    // Dataset pagination state
+    allDatasets: [],
+    filteredDatasets: [],
+    currentPage: 1,
+    pageSize: 20,
+    searchQuery: '',
+    sourceFilter: 'all',
+    datasetsLoading: false,
+    datasetsLoaded: false,
+
+    // Incremental sync state
+    maxId: null,
+    lastSyncTime: null,
+    syncInProgress: false,
+
+    // Fuse.js instance for fuzzy search
+    fuseInstance: null,
+
+    // Activated sources for filter dropdown (initialized from server, updated dynamically)
+    activatedSources: [],
+
+    // Cache key for localStorage (persistent across sessions)
+    cacheKey: 'ecox_datasets_cache_v2',
+    cacheVersion: 3,  // Bumped: v3 excludes descriptions to fit localStorage limit
+
+    // Computed pagination
+    get paginatedDatasets() {
+        const start = (this.currentPage - 1) * this.pageSize;
+        return this.filteredDatasets.slice(start, start + this.pageSize);
+    },
+    get totalPages() {
+        return Math.ceil(this.filteredDatasets.length / this.pageSize) || 1;
+    },
+    get totalDatasets() {
+        return this.filteredDatasets.length;
+    },
+    // Refresh activated sources from API (called when sources change)
+    async refreshSources() {
+        try {
+            const response = await fetch('/api/activated-sources-json');
+            this.activatedSources = await response.json();
+        } catch (error) {
+            console.error('Error refreshing sources:', error);
+        }
+    },
+
+    setTab(tab) {
+        this.activeTab = tab;
+        this.selectedSource = null;
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        history.replaceState({}, '', url.toString());
+    },
+
+    toggleSidebar() {
+        this.sidebarExpanded = !this.sidebarExpanded;
+        localStorage.setItem('ecox_sidebar_expanded', this.sidebarExpanded);
+    },
+
+    // Save datasets to localStorage for persistence across sessions
+    // Note: Descriptions are excluded to stay under 5MB localStorage limit
+    saveToCache() {
+        // Strip descriptions to reduce cache size (~3MB saved)
+        const slimDatasets = this.allDatasets.map(d => ({
+            id: d.id,
+            code: d.code,
+            name: d.name,
+            source: d.source,
+            last_fetched: d.last_fetched,
+            record_count: d.record_count
+        }));
+        const cache = {
+            datasets: slimDatasets,
+            maxId: this.maxId,
+            timestamp: Date.now(),
+            version: this.cacheVersion
+        };
+        localStorage.setItem(this.cacheKey, JSON.stringify(cache));
+    },
+
+    // Restore datasets from localStorage (returns true if data exists, regardless of age)
+    // Stale-while-revalidate: always show cached data immediately
+    restoreFromCache() {
+        try {
+            const cached = localStorage.getItem(this.cacheKey);
+            if (!cached) return false;
+
+            const data = JSON.parse(cached);
+
+            // Version check for cache migrations
+            if (data.version !== this.cacheVersion) {
+                localStorage.removeItem(this.cacheKey);
+                return false;
+            }
+
+            this.allDatasets = data.datasets || [];
+            this.maxId = data.maxId;
+            this.lastSyncTime = data.timestamp;
+            this.initFuseSearch();
+            this.applyFilters();
+            this.datasetsLoaded = true;
+            return true;
+        } catch (e) {
+            console.error('Error restoring from cache:', e);
+            localStorage.removeItem(this.cacheKey);
+            return false;
+        }
+    },
+
+    // Full load of all datasets (initial load or refresh)
+    async loadDatasets() {
+        this.datasetsLoading = true;
+        try {
+            const response = await fetch('/api/datasets-json');
+            const data = await response.json();
+
+            this.allDatasets = data.items || [];
+            this.maxId = data.max_id;
+            this.lastSyncTime = Date.now();
+            this.initFuseSearch();
+            this.applyFilters();
+            this.datasetsLoaded = true;
+
+            // Cache separately - quota errors shouldn't break the UI
+            try {
+                this.saveToCache();
+            } catch (cacheError) {
+                console.warn('Failed to cache datasets (quota exceeded?):', cacheError.message);
+            }
+        } catch (error) {
+            console.error('Error loading datasets:', error);
+            this.allDatasets = [];
+            this.filteredDatasets = [];
+        }
+        this.datasetsLoading = false;
+    },
+
+    // Fetch only new datasets since last sync (incremental update)
+    async fetchNewDatasets() {
+        if (this.syncInProgress) return;
+        this.syncInProgress = true;
+
+        try {
+            // Only fetch datasets with id > maxId
+            let url = '/api/datasets-json';
+            if (this.maxId !== null) {
+                url += `?since_id=${this.maxId}`;
+            }
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            // Always update lastSyncTime after successful fetch (even if no new items)
+            this.lastSyncTime = Date.now();
+
+            if (data.items && data.items.length > 0) {
+                // Merge new datasets into existing list
+                this.mergeDatasets(data.items);
+                if (data.max_id) {
+                    this.maxId = data.max_id;
+                }
+                this.applyFilters();
+                console.log(`Synced ${data.items.length} new datasets`);
+            } else {
+                console.log('No new datasets since last sync');
+            }
+
+            // Save updated timestamp to cache
+            this.saveToCache();
+        } catch (error) {
+            console.error('Error fetching new datasets:', error);
+        } finally {
+            this.syncInProgress = false;
+        }
+    },
+
+    // Merge new datasets into existing list
+    mergeDatasets(newDatasets) {
+        // Create a map for O(1) lookup by composite key (source:code)
+        const existingMap = new Map(
+            this.allDatasets.map(d => [`${d.source}:${d.code}`, d])
+        );
+
+        // Add or update datasets
+        for (const dataset of newDatasets) {
+            const key = `${dataset.source}:${dataset.code}`;
+            existingMap.set(key, dataset);
+        }
+
+        // Convert back to array, sorted by source then code
+        this.allDatasets = Array.from(existingMap.values())
+            .sort((a, b) => {
+                if (a.source !== b.source) return a.source.localeCompare(b.source);
+                return a.code.localeCompare(b.code);
+            });
+
+        // Rebuild Fuse index after merge
+        this.initFuseSearch();
+    },
+
+    // Initialize Fuse.js for fuzzy search
+    initFuseSearch() {
+        if (this.allDatasets.length > 0) {
+            this.fuseInstance = new Fuse(this.allDatasets, {
+                keys: ['code', 'name'],
+                threshold: 0.4,         // 0=exact, 1=match anything
+                ignoreLocation: true,   // Match anywhere in string
+                includeScore: true,
+                minMatchCharLength: 2,  // Minimum chars to start matching
+            });
+        }
+    },
+
+    // Initialize datasets with stale-while-revalidate pattern
+    async initDatasets() {
+        // 1. Try to restore from cache (show immediately, even if stale)
+        const restored = this.restoreFromCache();
+
+        if (restored) {
+            // Check cache age and decide refresh strategy
+            const cacheAge = Date.now() - (this.lastSyncTime || 0);
+            const twentyMinutes = 20 * 60 * 1000;
+            const fiveMinutes = 5 * 60 * 1000;
+
+            if (cacheAge > twentyMinutes) {
+                // Full refresh for stale cache (>20 min)
+                await this.loadDatasets();
+            } else if (cacheAge > fiveMinutes) {
+                // Incremental sync for 5-20 minute window
+                this.fetchNewDatasets();
+            }
+        } else {
+            // No cache, do full load with loading indicator
+            await this.loadDatasets();
+        }
+    },
+
+    // Apply both source and search filters client-side
+    applyFilters() {
+        let filtered = this.allDatasets;
+
+        // Filter by source first (exact match)
+        if (this.sourceFilter && this.sourceFilter !== 'all') {
+            filtered = filtered.filter(d => d.source === this.sourceFilter);
+        }
+
+        // Fuzzy search using Fuse.js
+        if (this.searchQuery && this.searchQuery.trim()) {
+            if (this.fuseInstance) {
+                // Use Fuse.js for fuzzy matching
+                const results = this.fuseInstance.search(this.searchQuery.trim());
+                const matchedKeys = new Set(results.map(r => `${r.item.source}:${r.item.code}`));
+
+                // Filter to only include fuzzy matches (respecting source filter)
+                filtered = filtered.filter(d => matchedKeys.has(`${d.source}:${d.code}`));
+            } else {
+                // Fallback to simple includes if Fuse not initialized
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(d =>
+                    d.code.toLowerCase().includes(query) ||
+                    d.name.toLowerCase().includes(query)
+                );
+            }
+        }
+
+        this.filteredDatasets = filtered;
+        this.currentPage = 1;
+    },
+
+    search(query) {
+        this.searchQuery = query;
+        this.applyFilters();
+    },
+
+    // Client-side source filtering (no server call)
+    changeSource(source) {
+        this.sourceFilter = source;
+        this.applyFilters();
+    },
+
+    nextPage() {
+        if (this.currentPage < this.totalPages) this.currentPage++;
+    },
+    prevPage() {
+        if (this.currentPage > 1) this.currentPage--;
+    },
+    goToPage(page) {
+        if (page >= 1 && page <= this.totalPages) this.currentPage = page;
+    },
+
+    // Computed property for human-readable last sync time
+    get lastSyncDisplay() {
+        if (!this.lastSyncTime) return 'Never';
+        const mins = Math.floor((Date.now() - this.lastSyncTime) / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return mins + 'm ago';
+        return Math.floor(mins / 60) + 'h ago';
+    },
+
+    // Force a full refresh (clear cache and reload)
+    async forceRefresh() {
+        if (this.datasetsLoading) return;  // Guard against multiple clicks
+        const oldCache = localStorage.getItem(this.cacheKey);
+        try {
+            localStorage.removeItem(this.cacheKey);
+            this.maxId = null;
+            this.lastSyncTime = null;
+            await this.loadDatasets();
+        } catch (error) {
+            console.error('Failed to refresh datasets:', error);
+            // Restore cache on failure
+            if (oldCache) localStorage.setItem(this.cacheKey, oldCache);
+            this.restoreFromCache();
+            window.dispatchEvent(new CustomEvent('show-toast', {
+                detail: { message: 'Failed to refresh datasets', type: 'error' }
+            }));
+        }
+    }
+}" x-init="refreshSources(); if (activeTab === 'datasets') { initDatasets() }"
+   @sources-changed.window="refreshSources()"
+   class="flex-1 flex overflow-hidden">
+
+    <!-- Sidebar Navigation (Desktop) - Fixed position, independent scroll -->
+    <aside
+        class="hidden md:flex flex-col shrink-0 overflow-y-auto bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-all duration-200"
+        :class="sidebarOpen ? 'w-52' : 'w-16'"
+        @mouseenter="sidebarHovered = true"
+        @mouseleave="sidebarHovered = false"
+    >
+        <!-- Navigation Items -->
+        <nav class="flex-1 py-4" role="navigation" aria-label="{{ t('nav.main_navigation') }}">
+            <div role="menubar" aria-orientation="vertical" aria-label="{{ t('nav.main_navigation') }}">
+                <!-- Data Sources -->
+                <button
+                    role="menuitem"
+                    tabindex="0"
+                    @click="setTab('sources')"
+                    @keydown.enter="setTab('sources')"
+                    @keydown.space.prevent="setTab('sources')"
+                    @keydown.arrow-down.prevent="$el.nextElementSibling?.focus()"
+                    @keydown.arrow-up.prevent="$el.previousElementSibling?.focus()"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                    :class="activeTab === 'sources'
+                        ? 'border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 pl-3'
+                        : 'border-l-4 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'"
+                    :title="!sidebarOpen ? '{{ t('nav.data_sources') }}' : ''"
+                    :aria-current="activeTab === 'sources' ? 'page' : undefined"
+                >
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                    </svg>
+                    <span x-show="sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="whitespace-nowrap">
+                        {{ t('nav.data_sources') }}
+                    </span>
+                </button>
+
+                <!-- Datasets -->
+                <button
+                    role="menuitem"
+                    tabindex="0"
+                    @click="setTab('datasets'); initDatasets()"
+                    @keydown.enter="setTab('datasets'); initDatasets()"
+                    @keydown.space.prevent="setTab('datasets'); initDatasets()"
+                    @keydown.arrow-down.prevent="$el.nextElementSibling?.focus()"
+                    @keydown.arrow-up.prevent="$el.previousElementSibling?.focus()"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                    :class="activeTab === 'datasets'
+                        ? 'border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 pl-3'
+                        : 'border-l-4 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'"
+                    :title="!sidebarOpen ? '{{ t('nav.datasets') }}' : ''"
+                    :aria-current="activeTab === 'datasets' ? 'page' : undefined"
+                >
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <span x-show="sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="whitespace-nowrap">
+                        {{ t('nav.datasets') }}
+                    </span>
+                </button>
+
+                <!-- News -->
+                <button
+                    role="menuitem"
+                    tabindex="0"
+                    @click="setTab('news')"
+                    @keydown.enter="setTab('news')"
+                    @keydown.space.prevent="setTab('news')"
+                    @keydown.arrow-down.prevent="$el.nextElementSibling?.focus()"
+                    @keydown.arrow-up.prevent="$el.previousElementSibling?.focus()"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                    :class="activeTab === 'news'
+                        ? 'border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 pl-3'
+                        : 'border-l-4 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'"
+                    :title="!sidebarOpen ? '{{ t('nav.news') }}' : ''"
+                    :aria-current="activeTab === 'news' ? 'page' : undefined"
+                >
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                    <span x-show="sidebarOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="whitespace-nowrap">
+                        {{ t('nav.news') }}
+                    </span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Sidebar Toggle Button (at bottom) -->
+        <div class="border-t border-slate-200 dark:border-slate-700 p-2">
+            <button
+                @click="toggleSidebar()"
+                @keydown.enter="toggleSidebar()"
+                @keydown.space.prevent="toggleSidebar()"
+                class="w-full flex items-center justify-center p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                :title="sidebarExpanded ? '{{ t('sidebar.collapse') }}' : '{{ t('sidebar.expand') }}'"
+                :aria-expanded="sidebarExpanded"
+                :aria-label="sidebarExpanded ? '{{ t('sidebar.collapse') }}' : '{{ t('sidebar.expand') }}'"
+            >
+                <svg class="h-5 w-5 transition-transform duration-200" :class="sidebarExpanded ? '' : 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 min-h-0 overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <div class="h-full overflow-y-auto px-4 py-6 md:px-6 lg:px-8 pt-14 md:pt-6">
+            <div class="mx-auto max-w-6xl min-h-0">
+
+    <!-- Tab Content: Data Sources -->
+    <div x-show="activeTab === 'sources'" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+
+        <!-- Sources Section -->
+        <section class="mb-12">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('sources.title') }}</h2>
+                <!-- Add Data Source Button -->
+                <button
+                    hx-get="/api/catalog/sources"
+                    hx-target="#modal-content"
+                    hx-swap="innerHTML"
+                    @click="$dispatch('open-modal')"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    {{ t('sources.manage_button') }}
+                </button>
+            </div>
+
+            <!-- Sources Container - loads on page load via htmx -->
+            <div id="sources-container" hx-get="/api/sources" hx-trigger="load" hx-indicator="#global-spinner">
+                <!-- Loading skeleton -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+                    <div class="h-32 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                    <div class="h-32 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                    <div class="h-32 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                </div>
+            </div>
+        </section>
+
+    </div><!-- End Data Sources Tab Content -->
+
+    <!-- Tab Content: Datasets -->
+    <div x-show="activeTab === 'datasets'" x-cloak x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+        class="h-full flex flex-col">
+
+        <section id="datasets-section" class="flex-1 flex flex-col min-h-0">
+            <!-- Dynamic Title -->
+            <div class="flex-shrink-0 flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                    <span x-show="sourceFilter === 'all'">{{ t('datasets.all_datasets') }}</span>
+                    <span x-show="sourceFilter !== 'all'" x-text="'{{ t('datasets.datasets_for', source='') }} ' + sourceFilter.charAt(0).toUpperCase() + sourceFilter.slice(1)"></span>
+                </h2>
+            </div>
+
+            <!-- Filter Bar - Above Table (sticky) -->
+            <div class="flex-shrink-0 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 mb-4">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <!-- Search Input -->
+                    <div class="flex-1 min-w-48 relative">
+                        <input type="text"
+                               x-model="searchQuery"
+                               @input.debounce.300ms="applyFilters()"
+                               placeholder="{{ t('datasets.search_placeholder') }}"
+                               class="w-full px-3 py-2 pr-8 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500">
+                        <button x-show="searchQuery"
+                                @click="searchQuery = ''; applyFilters()"
+                                type="button"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 text-lg leading-none">
+                            &times;
+                        </button>
+                    </div>
+
+                    <!-- Source Filter Dropdown (dynamic from activated sources) -->
+                    <select x-model="sourceFilter"
+                            @change="applyFilters()"
+                            class="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="all">{{ t('datasets.all_sources') }}</option>
+                        <template x-for="source in activatedSources" :key="source.code">
+                            <option :value="source.code" x-text="source.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())"></option>
+                        </template>
+                    </select>
+
+                    <!-- Reset Filters (client-side) -->
+                    <button x-show="searchQuery || sourceFilter !== 'all'"
+                            @click="searchQuery = ''; sourceFilter = 'all'; applyFilters()"
+                            class="px-3 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 underline transition-colors">
+                        {{ t('datasets.reset_all') }}
+                    </button>
+
+                    <!-- Spacer to push refresh to right -->
+                    <div class="flex-grow"></div>
+
+                    <!-- Last Sync + Refresh Button -->
+                    <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                        <span x-text="'Last sync: ' + lastSyncDisplay"></span>
+                        <button @click="forceRefresh()"
+                                :disabled="datasetsLoading"
+                                :aria-busy="datasetsLoading"
+                                aria-label="Refresh datasets"
+                                :class="datasetsLoading ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-700'"
+                                class="p-1.5 rounded-lg transition-colors"
+                                title="Refresh datasets">
+                            <svg class="h-4 w-4" :class="datasetsLoading ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Summary -->
+                <div class="mt-3 text-sm text-slate-500 dark:text-slate-400">
+                    <span x-text="'{{ t('datasets.showing_of', count='__COUNT__', total='__TOTAL__') }}'.replace('__COUNT__', paginatedDatasets.length).replace('__TOTAL__', totalDatasets)"></span>
+                    <span x-show="searchQuery" class="text-blue-600 dark:text-blue-400 font-medium">{{ t('datasets.filtered') }}</span>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="datasetsLoading" class="space-y-4 animate-pulse">
+                <div class="h-8 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
+                <div class="h-8 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
+                <div class="h-8 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!datasetsLoading && filteredDatasets.length === 0"
+                 class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-12">
+                <div class="flex flex-col items-center justify-center">
+                    <svg class="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <template x-if="searchQuery">
+                        <div class="text-center">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ t('datasets.empty_filtered_title') }}</h3>
+                            <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ t('datasets.empty_filtered_description') }}</p>
+                            <button @click="searchQuery = ''; applyFilters()"
+                                    class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                {{ t('datasets.clear_filters') }}
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="!searchQuery">
+                        <div class="text-center">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ t('datasets.empty_title') }}</h3>
+                            <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ t('datasets.empty_description', source='') }}</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Datasets Table -->
+            <div x-show="!datasetsLoading && filteredDatasets.length > 0"
+                 class="flex-1 min-h-0 flex flex-col bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <!-- Header with Pagination (sticky) -->
+                <div class="flex-shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800">
+                    <div class="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+                        <p x-text="totalDatasets + ' {{ t('table.datasets') }}'"></p>
+                        <div class="flex items-center gap-2">
+                            <button @click="prevPage()"
+                                    :disabled="currentPage <= 1"
+                                    :class="currentPage <= 1
+                                        ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300'"
+                                    class="px-3 py-1 rounded border">
+                                {{ t('table.previous') }}
+                            </button>
+
+                            <span class="font-medium" x-text="'{{ t('table.page') }} ' + currentPage + ' / ' + totalPages"></span>
+
+                            <button @click="nextPage()"
+                                    :disabled="currentPage >= totalPages"
+                                    :class="currentPage >= totalPages
+                                        ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300'"
+                                    class="px-3 py-1 rounded border">
+                                {{ t('table.next') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table (scrollable body with sticky header) -->
+                <div class="max-h-[calc(100vh-24rem)] overflow-auto">
+                    <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                        <thead class="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+                            <tr>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">
+                                    {{ t('table.source') }}
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-32">
+                                    {{ t('table.code') }}
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                    {{ t('table.name') }}
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-32">
+                                    {{ t('table.records') }}
+                                </th>
+                                <th scope="col"
+                                    class="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-40">
+                                    {{ t('table.last_fetched') }}
+                                </th>
+                                <th scope="col" class="relative px-6 py-3">
+                                    <span class="sr-only">{{ t('table.actions') }}</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-slate-800 divide-y divide-slate-100 dark:divide-slate-700">
+                            <template x-for="dataset in paginatedDatasets" :key="dataset.code + '-' + dataset.source">
+                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                              :class="{
+                                                  'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300': dataset.source === 'eurostat',
+                                                  'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300': dataset.source === 'fred',
+                                                  'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300': dataset.source === 'nbs',
+                                                  'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-300': !['eurostat', 'fred', 'nbs'].includes(dataset.source)
+                                              }"
+                                              x-text="dataset.source.toUpperCase()">
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm font-mono font-medium text-slate-900 dark:text-slate-100" x-text="dataset.code"></span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="text-sm text-slate-900 dark:text-slate-100 line-clamp-2"
+                                             :title="dataset.name"
+                                             x-text="dataset.name.length > 80 ? dataset.name.slice(0, 77) + '...' : dataset.name">
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-slate-600 dark:text-slate-400"
+                                              x-text="dataset.record_count ? dataset.record_count.toLocaleString() : '-'"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center gap-2">
+                                            <div class="h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-green-100 dark:ring-green-900"
+                                                 x-show="dataset.last_fetched"></div>
+                                            <div class="h-2.5 w-2.5 rounded-full bg-slate-300 ring-2 ring-slate-100 dark:ring-slate-700"
+                                                 x-show="!dataset.last_fetched"></div>
+                                            <span class="text-sm text-slate-600 dark:text-slate-400"
+                                                  x-text="dataset.last_fetched ? new Date(dataset.last_fetched).toLocaleDateString() : '{{ t('datasets.never') }}'"></span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        <button @click="$dispatch('open-modal'); htmx.ajax('GET', '/api/datasets/' + dataset.source + '/' + dataset.code, {target: '#modal-content'})"
+                                            class="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium text-sm transition-colors">
+                                            {{ t('datasets.view_details') }}
+                                            <svg class="h-4 w-4 group-hover:translate-x-0.5 transition-transform" fill="none"
+                                                viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer (sticky at bottom) -->
+                <div class="flex-shrink-0 px-6 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                    <div class="flex items-center justify-end text-sm">
+                        <button @click="setTab('sources')"
+                            class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                            {{ t('datasets.view_all_sources') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div><!-- End Datasets Tab Content -->
+
+    <!-- Tab Content: Economical News -->
+    <div x-show="activeTab === 'news'" x-cloak x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+
+        <!-- News Container - loads when tab is first shown -->
+        <div id="news-container"
+             class="h-[calc(100vh-8rem)]"
+             hx-get="/api/news" hx-trigger="intersect once" hx-indicator="#global-spinner">
+            <!-- Loading skeleton -->
+            <div class="h-full space-y-4 animate-pulse">
+                <div class="h-8 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
+                <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/4"></div>
+                <div class="h-32 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+                <div class="h-32 bg-slate-200 dark:bg-slate-700 rounded-lg"></div>
+            </div>
+        </div>
+
+    </div><!-- End Economical News Tab Content -->
+
+            </div><!-- End mx-auto max-w-6xl -->
+        </div><!-- End overflow-y-auto -->
+    </main><!-- End Main Content Area -->
+
+    <!-- Mobile Top Navigation (below header) -->
+    <nav class="md:hidden fixed top-[73px] left-0 right-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 z-40">
+        <div class="flex items-stretch h-12">
+            <!-- Data Sources -->
+            <button
+                @click="setTab('sources')"
+                class="flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors"
+                :class="activeTab === 'sources'
+                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                    : 'text-slate-600 dark:text-slate-400'"
+            >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                </svg>
+                <span>{{ t('nav.data_sources') }}</span>
+            </button>
+
+            <!-- Datasets -->
+            <button
+                @click="setTab('datasets'); initDatasets()"
+                class="flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors"
+                :class="activeTab === 'datasets'
+                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                    : 'text-slate-600 dark:text-slate-400'"
+            >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <span>{{ t('nav.datasets') }}</span>
+            </button>
+
+            <!-- News -->
+            <button
+                @click="setTab('news')"
+                class="flex-1 flex flex-col items-center justify-center gap-1 text-xs font-medium transition-colors"
+                :class="activeTab === 'news'
+                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                    : 'text-slate-600 dark:text-slate-400'"
+            >
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                </svg>
+                <span>{{ t('nav.news') }}</span>
+            </button>
+        </div>
+    </nav>
+
+</div><!-- End Main Layout Wrapper -->
+
+<!-- Modal Container (Alpine.js managed) -->
+<div id="modal-container" x-data="{ show: false }" @open-modal.window="show = true"
+    @close-modal.window="show = false" @keydown.escape.window="show = false">
+
+    <!-- Backdrop -->
+    <div x-show="show" x-transition.opacity class="fixed inset-0 z-40 bg-black/50" @click="show = false">
+    </div>
+
+    <!-- Modal -->
+    <div x-show="show" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+        <div @click.stop class="w-full max-w-4xl bg-white dark:bg-slate-800 rounded-lg shadow-xl pointer-events-auto overflow-hidden">
+            <!-- Modal content loaded via htmx -->
+            <div id="modal-content"></div>
+        </div>
+    </div>
+</div>
+
+<!-- SSE Connection (htmx extension) -->
+<div hx-ext="sse" sse-connect="/api/events" style="display: none;">
+    <div sse-swap="dataset-update"></div>
+    <div sse-swap="keepalive"></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Update connection status indicator
+    function updateConnectionStatus(status) {
+        const statusEl = document.getElementById('connection-status');
+        if (!statusEl) return;
+
+        if (status === 'live') {
+            statusEl.innerHTML = `
+                <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="text-xs text-green-600 dark:text-green-400 font-medium">${t('status.live')}</span>
+            `;
+        } else if (status === 'disconnected') {
+            statusEl.innerHTML = `
+                <div class="h-2 w-2 rounded-full bg-red-500"></div>
+                <span class="text-xs text-red-600 dark:text-red-400 font-medium">${t('status.disconnected')}</span>
+            `;
+        } else {
+            statusEl.innerHTML = `
+                <div class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                <span class="text-xs text-slate-500 dark:text-slate-400">${t('status.connecting')}</span>
+            `;
+        }
+    }
+
+    // Listen for SSE open event (htmx 2.0 extension)
+    document.body.addEventListener('htmx:sseOpen', function (event) {
+        console.log('SSE connection established');
+        updateConnectionStatus('live');
+    });
+
+    // Listen for SSE error event
+    document.body.addEventListener('htmx:sseError', function (event) {
+        console.error('SSE connection error:', event.detail);
+        updateConnectionStatus('disconnected');
+    });
+
+    // Listen for SSE close event
+    document.body.addEventListener('htmx:sseClose', function (event) {
+        console.log('SSE connection closed');
+        updateConnectionStatus('disconnected');
+    });
+
+    // Listen for SSE messages (for dataset updates and keepalive)
+    document.body.addEventListener('htmx:sseBeforeMessage', function (event) {
+        const eventType = event.detail.type;
+
+        if (eventType === 'dataset-update') {
+            try {
+                const data = JSON.parse(event.detail.data);
+                console.log('Dataset updated:', data);
+
+                // Determine toast type based on status
+                const toastType = data.status === 'success' ? 'success' : 'error';
+                const message = `${data.source}/${data.dataset_code}: ${data.status}`;
+
+                // Dispatch toast event
+                window.dispatchEvent(new CustomEvent('show-toast', {
+                    detail: { message, type: toastType }
+                }));
+
+                // Update connection status
+                updateConnectionStatus('live');
+            } catch (e) {
+                console.error('Error parsing SSE data:', e);
+            }
+        } else if (eventType === 'keepalive') {
+            console.debug('SSE keepalive received');
+            updateConnectionStatus('live');
+        }
+    });
+
+    // Initialize on page load - check SSE connection after a short delay
+    document.addEventListener('DOMContentLoaded', function () {
+        updateConnectionStatus('connecting');
+
+        // Give SSE extension time to connect, then check status
+        setTimeout(function () {
+            // If still connecting after 2 seconds, assume connected
+            // (htmx:sseOpen might have already fired)
+            const statusEl = document.getElementById('connection-status');
+            if (statusEl && statusEl.textContent.includes('Connecting')) {
+                updateConnectionStatus('live');
+            }
+        }, 2000);
+    });
+</script>
+{% endblock %}

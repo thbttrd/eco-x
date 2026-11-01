@@ -1,0 +1,140 @@
+<!-- Modal header -->
+<div class="px-6 py-5 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800 sticky top-0 z-10">
+    <div class="flex items-start justify-between">
+        <div class="flex-1 pr-8">
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">{{ t('catalog.title') }}</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-400">
+                {{ t('catalog.description') }}
+            </p>
+        </div>
+        <button
+            hx-get="/api/sources"
+            hx-target="#sources-container"
+            hx-swap="innerHTML"
+            onclick="window.dispatchEvent(new CustomEvent('close-modal'))"
+            class="flex-shrink-0 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- Modal body -->
+<div id="catalog-modal-content" class="px-6 py-6 max-h-[calc(90vh-10rem)] overflow-y-auto">
+    {% if sources %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for source in sources %}
+        <div class="p-5 border-2 rounded-xl transition-all {% if source.activated %}border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800{% else %}border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 opacity-70{% endif %}">
+            <!-- Source header -->
+            <div class="flex items-start justify-between mb-3">
+                <div class="flex items-center gap-3">
+                    <!-- Icon based on source -->
+                    {% if source.code == 'eurostat' %}
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center {% if source.activated %}bg-blue-100 dark:bg-blue-900/50{% else %}bg-slate-200 dark:bg-slate-700{% endif %}">
+                        <svg class="h-6 w-6 {% if source.activated %}text-blue-600 dark:text-blue-400{% else %}text-slate-400 dark:text-slate-500{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    {% elif source.code == 'fred' %}
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center {% if source.activated %}bg-green-100 dark:bg-green-900/50{% else %}bg-slate-200 dark:bg-slate-700{% endif %}">
+                        <svg class="h-6 w-6 {% if source.activated %}text-green-600 dark:text-green-400{% else %}text-slate-400 dark:text-slate-500{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    {% else %}
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center {% if source.activated %}bg-purple-100 dark:bg-purple-900/50{% else %}bg-slate-200 dark:bg-slate-700{% endif %}">
+                        <svg class="h-6 w-6 {% if source.activated %}text-purple-600 dark:text-purple-400{% else %}text-slate-400 dark:text-slate-500{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                        </svg>
+                    </div>
+                    {% endif %}
+                    <h3 class="font-semibold text-lg {% if source.activated %}text-slate-900 dark:text-slate-100{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+                        {{ source.name }}
+                    </h3>
+                </div>
+
+                <!-- Activation Toggle -->
+                <label class="relative inline-flex items-center cursor-pointer" title="{{ t('catalog.toggle_activation') }}">
+                    <input type="checkbox"
+                           class="sr-only peer"
+                           {% if source.activated %}checked{% endif %}
+                           hx-post="/api/sources/{{ source.code }}/activate"
+                           hx-vals='{"activated": "{{ 'false' if source.activated else 'true' }}"}'
+                           hx-target="#modal-content"
+                           hx-swap="innerHTML"
+                           hx-on::after-request="$dispatch('sources-changed')">
+                    <div class="w-11 h-6 bg-slate-200 dark:bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 dark:after:border-slate-500 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
+            <!-- Description -->
+            <p class="text-sm mb-3 {% if source.activated %}text-slate-600 dark:text-slate-400{% else %}text-slate-500 dark:text-slate-500{% endif %}">{{ source.description }}</p>
+
+            <!-- Stats and Action -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4 text-xs {% if source.activated %}text-slate-500 dark:text-slate-400{% else %}text-slate-400 dark:text-slate-500{% endif %}">
+                    <span class="flex items-center gap-1">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                        </svg>
+                        {{ "{:,}".format(source.dataset_count_estimate or 0) }} {{ t('catalog.datasets') }}
+                    </span>
+                    {% if source.auth_required %}
+                    <span class="flex items-center gap-1 text-amber-600 dark:text-amber-500">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        {{ t('catalog.api_key_required') }}
+                    </span>
+                    {% else %}
+                    <span class="flex items-center gap-1 {% if source.activated %}text-green-600 dark:text-green-400{% else %}text-slate-400 dark:text-slate-500{% endif %}">
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                        </svg>
+                        {{ t('catalog.public_api') }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- Activation status badge -->
+                {% if source.activated %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    {{ t('catalog.activated') }}
+                </span>
+                {% else %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400">
+                    {{ t('catalog.deactivated') }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty state -->
+    <div class="flex flex-col items-center justify-center py-12 px-4">
+        <svg class="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+        </svg>
+        <p class="text-slate-600 dark:text-slate-400 text-center">{{ t('catalog.empty') }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal footer -->
+<div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+    <div class="flex items-center justify-end">
+        <button
+            hx-get="/api/sources"
+            hx-target="#sources-container"
+            hx-swap="innerHTML"
+            onclick="window.dispatchEvent(new CustomEvent('close-modal'))"
+            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+            {{ t('modal.validate_close') }}
+        </button>
+    </div>
+</div>

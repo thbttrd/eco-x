@@ -1,0 +1,59 @@
+name: Semantic Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-release-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    # Skip release commits to prevent infinite loops
+    if: "!startsWith(github.event.head_commit.message, 'chore(release)')"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Force branch to workflow sha
+        run: git reset --hard ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Semantic Release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v10.2.0
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          build: "false"
+          changelog: "true"
+
+      - name: Publish to GitHub Releases
+        uses: python-semantic-release/publish-action@v10.2.0
+        if: steps.release.outputs.released == 'true'
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          tag: ${{ steps.release.outputs.tag }}

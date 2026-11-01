@@ -1,0 +1,411 @@
+news:
+- category: Central Banks
+  sources:
+  # ECB Monetary Policy - using include files for article extraction
+  - title: ECB Monetary Policy
+    description: European Central Bank monetary policy communications
+    enabled: true
+    sections:
+      - title: Monetary policy decisions (2025)
+        url: https://www.ecb.europa.eu/press/govcdec/mopo/2025/html/index_include.en.html
+        enabled: true
+        parse_selector: "dd > .title > a"
+        parse_comment: "Extract decision links from definition list"
+      - title: Monetary policy decisions (2024)
+        url: https://www.ecb.europa.eu/press/govcdec/mopo/2024/html/index_include.en.html
+        enabled: true
+        parse_selector: "dd > .title > a"
+        parse_comment: "Extract decision links from definition list"
+      - title: Monetary policy accounts (2025)
+        url: https://www.ecb.europa.eu/press/accounts/2025/html/index_include.en.html
+        enabled: true
+        parse_selector: "dd > .title > a"
+        parse_comment: "Extract meeting account links from definition list"
+      - title: Monetary policy accounts (2024)
+        url: https://www.ecb.europa.eu/press/accounts/2024/html/index_include.en.html
+        enabled: true
+        parse_selector: "dd > .title > a"
+        parse_comment: "Extract meeting account links from definition list"
+  # Other ECB sources (disabled)
+  - title: ECB Statistical Data Warehouse
+    url: https://sdw.ecb.europa.eu/
+    enabled: false
+  - title: ECB Macroeconomic projections
+    url: https://www.ecb.europa.eu/pub/projections/html/index.en.html
+    enabled: false
+  - title: Official interest rates - ECB
+    url: https://sdw.ecb.europa.eu/browse.do?node=9691107
+    enabled: false
+  - title: Schedules for the meetings of the Governing Council
+    url: https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html
+    enabled: false
+  - title: Euro short-term rate (€STR)
+    url: https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html
+    enabled: false
+  - title: European Central Bank
+    url: https://www.ecb.europa.eu/home/html/index.en.html
+    enabled: false
+  - title: Federal Reserve Economic Data | FRED
+    url: https://fred.stlouisfed.org/
+    enabled: false
+  - title: Federal Reserve Board - Beige Book
+    url: https://www.federalreserve.gov/monetarypolicy/beige-book-default.htm
+    enabled: false
+  - title: Federal Reserve Board - Data
+    url: https://www.federalreserve.gov/data.htm
+    enabled: false
+  - title: FOMC Projections materials
+    url: https://www.federalreserve.gov/monetarypolicy/fomcprojtable20220316.htm
+    enabled: false
+  - title: Federal Funds Target Range
+    url: https://fred.stlouisfed.org/series/DFEDTARU
+    enabled: false
+  - title: The Fed - Meeting calendars
+    url: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+    enabled: false
+  - title: Federal Reserve Bank of St. Louis
+    url: https://www.stlouisfed.org/
+    enabled: false
+  - title: Federal Reserve Bank of San Francisco
+    url: https://www.frbsf.org/
+    enabled: false
+  - title: Federal Reserve Bank of Kansas City
+    url: https://www.kansascityfed.org/
+    enabled: false
+  - title: Home PBOC
+    url: http://www.pbc.gov.cn/en/3688006/index.html
+    enabled: false
+  - title: CNY Central Parity Rate - CFETS
+    url: https://www.chinamoney.com.cn/english/bmkcpr/
+    enabled: false
+  - title: Banque nationale suisse (BNS)
+    url: https://www.snb.ch/fr/iabout/monpol
+    enabled: false
+- category: National Statistics
+  sources:
+  - title: Statistiques et études | Insee
+    url: https://www.insee.fr/fr/statistiques
+    enabled: false
+  - title: WEBSTAT BdF
+    url: http://webstat.banque-france.fr/fr/#/home
+    enabled: false
+  - title: New Residential Construction - USA
+    url: https://www.census.gov/construction/nrc/index.html
+    enabled: false
+  - title: Press releases - Destatis
+    url: https://www.destatis.de/SiteGlobals/Forms/Suche/Presse/EN/Pressesuche_Formular.html;jsessionid=87C07FBB2464FEEB01E026E256F49E7B.live711
+    enabled: false
+  - title: Istat.it english | press releases
+    url: https://www.istat.it/en/archive
+    enabled: false
+  - title: INE | Spain news releases
+    url: https://www.ine.es/dyngs/Prensa/ultNoticias.html?L=1
+    enabled: false
+  - title: Statistics | Eurostat
+    url: https://ec.europa.eu/eurostat/databrowser/explore/all/all_themes?lang=fr&display=list&sort=category
+    enabled: false
+  - title: Euro-indicateurs - Eurostat
+    url: https://ec.europa.eu/eurostat/fr/web/main/news/euro-indicators?p_p_id=estatsearchportlet_WAR_estatsearchportlet_INSTANCE_OaTpFrwlabNK&p_p_lifecycle=1&p_p_state=normal&p_p_mode=view&_estatsearchportlet_WAR_estatsearchportlet_INSTANCE_OaTpFrwlabNK_action=search&_estatsearchportlet_WAR_estatsearchportlet_INSTANCE_OaTpFrwlabNK_pageSize=11&_estatsearchportlet_WAR_estatsearchportlet_INSTANCE_OaTpFrwlabNK_sort=lastUpdateDate&_estatsearchportlet_WAR_estatsearchportlet_INSTANCE_OaTpFrwlabNK_collection=CAT_PREREL&p_auth=iz4XgKiS&_estatsearchportlet_WAR_estatsearchportlet_INSTANCE_OaTpFrwlabNK_theme=PER_ECOFIN
+    enabled: false
+  - title: U.S. Bureau of Economic Analysis (BEA)
+    url: https://www.bea.gov/news
+    enabled: false
+  - title: U.S. Bureau of Labor Statistics
+    url: https://www.bls.gov/bls/newsrels.htm
+    enabled: false
+  - title: 'Top Picks : U.S. BLS'
+    url: https://data.bls.gov/cgi-bin/surveymost?bls
+    enabled: false
+  - title: National Bureau of Statistics of China
+    url: http://www.stats.gov.cn/english/PressRelease/
+    enabled: false
+  - title: Statistics - GACC
+    url: http://english.customs.gov.cn/Statistics/Statistics?ColumnId=1
+    enabled: false
+  - title: State Taxation Administration - China
+    url: https://www.chinatax.gov.cn/eng/home.html
+    enabled: false
+  - title: Census.gov
+    url: https://www.census.gov/
+    enabled: false
+- category: International Institutions
+  sources:
+  - title: Business and consumer surveys | EC
+    url: https://ec.europa.eu/info/business-economy-euro/indicators-statistics/economic-databases/business-and-consumer-surveys_en
+    enabled: false
+  - title: Latest business and consumer surveys | EC
+    url: https://ec.europa.eu/info/business-economy-euro/indicators-statistics/economic-databases/business-and-consumer-surveys/latest-business-and-consumer-surveys_en
+    enabled: false
+  - title: Press corner | European Commission
+    url: https://ec.europa.eu/commission/presscorner/home/en
+    enabled: false
+  - title: World Economic Outlook
+    url: https://www.imf.org/en/Publications/WEO
+    enabled: false
+  - title: Perspectives économiques de l'OCDE
+    url: https://www.oecd-ilibrary.org/fr/economics/data/perspectives-economiques-de-l-ocde-statistiques-et-projections_eo-data-fr
+    enabled: false
+  - title: Oil Market Report – IEA
+    url: https://www.iea.org/topics/oil-market-report
+    enabled: false
+  - title: Press - Financial Stability Board
+    url: https://www.fsb.org/press/
+    enabled: false
+  - title: World Trade Organization
+    url: https://www.wto.org/
+    enabled: false
+  - title: International Labour Organization
+    url: https://www.ilo.org/global/lang--en/index.htm
+    enabled: false
+  - title: Quarterly Reviews | BIS
+    url: https://www.bis.org/quarterlyreviews/index.htm?m=1025
+    enabled: false
+- category: Economic Indicators
+  sources:
+  - title: The Atlas of Economic Complexity
+    url: https://atlas.cid.harvard.edu/explore?country=43&product=undefined&year=2019&productClass=HS&target=Product&partner=undefined&startYear=1995
+    enabled: false
+  - title: Quarterly registrations of new businesses
+    url: https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Quarterly_registrations_of_new_businesses_and_declarations_of_bankruptcies_-_statistics#Quarterly_comparison_by_activity
+    enabled: false
+  - title: Press Releases | STR
+    url: https://str.com/data-insights/news/press-releases?field_region=All&coverage%5Bmin%5D=&coverage%5Bmax%5D=&year=any&month=any
+    enabled: false
+  - title: IATA - Economics
+    url: https://www.iata.org/en/publications/economics/
+    enabled: false
+  - title: Balance on Current Account | FRED
+    url: https://fred.stlouisfed.org/graph/?g=mfu
+    enabled: false
+  - title: Budget and Economic Data | CBO
+    url: https://www.cbo.gov/data/budget-economic-data#2
+    enabled: false
+  - title: Pan-European research | BNP Paribas
+    url: https://www.realestate.bnpparibas.com/research-and-market-insights/pan-european-research
+    enabled: false
+  - title: Études de marché France | BNP Paribas
+    url: https://www.realestate.bnpparibas.fr/fr/etudes-tendances/etudes-de-marche-France
+    enabled: false
+  - title: Economics Insights - Knight Frank
+    url: https://www.knightfrank.com/research/category/topic/economics
+    enabled: false
+  - title: Surveys of Consumers | UMich
+    url: http://www.sca.isr.umich.edu/
+    enabled: false
+  - title: Office of Management and Budget
+    url: https://www.whitehouse.gov/omb/
+    enabled: false
+  - title: U.S. Energy Information Administration
+    url: https://www.eia.gov/reports/upcoming.php
+    enabled: false
+  - title: Publications | Dares
+    url: https://dares.travail-emploi.gouv.fr/publications
+    enabled: false
+  - title: U.S. Economic Calendar - MarketWatch
+    url: https://www.marketwatch.com/economy-politics/calendar
+    enabled: false
+  - title: Surveys - Dallasfed.org
+    url: https://www.dallasfed.org/research/surveys.aspx
+    enabled: false
+  - title: S&P CoreLogic Case-Shiller Home Price Indices
+    url: https://www.spglobal.com/spdji/en/index-family/indicators/sp-corelogic-case-shiller/sp-corelogic-case-shiller-composite/#news-research
+    enabled: false
+  - title: FHFA House Price Index
+    url: https://www.fhfa.gov/DataTools/Downloads/Pages/House-Price-Index.aspx
+    enabled: false
+  - title: Richmond FED surveys
+    url: https://www.richmondfed.org/research/regional_economy/surveys_of_business_conditions
+    enabled: false
+  - title: How Treasury Auctions Work
+    url: https://www.treasurydirect.gov/instit/auctfund/work/work.htm#:~:text=On%20issue%20day%2C%20Treasury%20delivers,paid%20at%20par%20at%20maturity.
+    enabled: false
+  - title: Philadelphia FED
+    url: https://www.philadelphiafed.org/surveys-and-data/regional-economic-analysis
+    enabled: false
+  - title: Economic Indicators Calendar - NY Fed
+    url: https://www.newyorkfed.org/research/calendars/nationalecon_cal
+    enabled: false
+  - title: US Consumer Confidence
+    url: https://www.conference-board.org/topics/consumer-confidence
+    enabled: false
+  - title: CME FedWatch Tool
+    url: https://www.cmegroup.com/trading/interest-rates/countdown-to-fomc.html
+    enabled: false
+  - title: PMI Releases
+    url: https://www.markiteconomics.com/Public/Release/PressReleases?language=fr
+    enabled: false
+  - title: Surveys - Kansas City Fed
+    url: https://www.kansascityfed.org/surveys/
+    enabled: false
+  - title: Pending Home Sales Decline
+    url: https://www.nar.realtor/blogs/economists-outlook/pending-home-sales-decline-1-2-in-march-2022
+    enabled: false
+  - title: Economists' Outlook | NAR
+    url: https://www.nar.realtor/blogs/economists-outlook
+    enabled: false
+  - title: Housing Market Index (HMI) - NAHB
+    url: https://www.nahb.org/news-and-economics/housing-economics/indices/housing-market-index
+    enabled: false
+  - title: Bankruptcy Filings Statistics
+    url: https://www.uscourts.gov/statistics-reports/analysis-reports/bankruptcy-filings-statistics
+    enabled: false
+  - title: Redfin Real Estate News
+    url: https://www.redfin.com/news/
+    enabled: false
+  - title: ADP National Employment Report
+    url: https://adpemploymentreport.com/
+    enabled: false
+  - title: ISM
+    url: https://www.ismworld.org/
+    enabled: false
+  - title: NFIB
+    url: http://www.nfib-sbet.org/
+    enabled: false
+  - title: Small Business Economics Trends | NFIB
+    url: https://www.nfib.com/surveys/small-business-economic-trends/
+    enabled: false
+  - title: Empire State Manufacturing Survey
+    url: https://www.newyorkfed.org/survey/empire/empiresurvey_overview
+    enabled: false
+  - title: Inflation Nowcasting | Cleveland FED
+    url: https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting
+    enabled: false
+  - title: GDPNow - Atlanta Fed
+    url: https://www.atlantafed.org/cqer/research/gdpnow
+    enabled: false
+  - title: WSTS news releases
+    url: https://www.wsts.org/76/Recent-News-Release
+    enabled: false
+  - title: Daily yields of Federal securities
+    url: https://www.bundesbank.de/en/statistics/money-and-capital-markets/interest-rates-and-yields/daily-yields-of-current-federal-securities-772220
+    enabled: false
+  - title: Economic Indicators | govinfo
+    url: https://www.govinfo.gov/app/collection/econi/2022/05
+    enabled: false
+  - title: TIC Securities (B)
+    url: https://home.treasury.gov/data/treasury-international-capital-tic-system-home-page/tic-forms-instructions/securities-b-portfolio-holdings-of-us-and-foreign-securities
+    enabled: false
+- category: Research & Analysis
+  sources:
+  - title: Goldman Sachs | Insights
+    url: https://www.goldmansachs.com/insights/series/goldman-sachs-research/index.html
+    enabled: false
+  - title: Specials | Allianz research
+    url: https://www.allianz.com/en/economic_research/publications/specials_fmo.html
+    enabled: false
+  - title: Hutchins Center on Fiscal & Monetary Policy
+    url: https://www.brookings.edu/center/the-hutchins-center-on-fiscal-and-monetary-policy/
+    enabled: false
+  - title: Press | ifo Institute
+    url: https://www.ifo.de/en/newsroom/press
+    enabled: false
+  - title: Larry Summers
+    url: http://larrysummers.com/
+    enabled: false
+  - title: Etudes Economiques – BNP Paribas
+    url: https://economic-research.bnpparibas.com/Views/InterHomeView.aspx?Lang=fr-FR
+    enabled: false
+  - title: Dernières publications de l'OFCE
+    url: https://www.ofce.sciences-po.fr/publications/publications.php
+    enabled: false
+  - title: Media/Commentary - Advisors Capital
+    url: https://advisorscapital.com/media-commentary/
+    enabled: false
+  - title: Indexes - Caixin Global
+    url: https://www.caixinglobal.com/report/
+    enabled: false
+  - title: Home | Institute for Employment Research
+    url: https://www.iab.de/en/iab-aktuell.aspx
+    enabled: false
+  - title: HCSF | economie.gouv.fr
+    url: https://www.economie.gouv.fr/hcsf
+    enabled: false
+  - title: This Week in Earnings | Lipper Alpha
+    url: https://lipperalpha.refinitiv.com/2022/10/this-week-in-earnings-22q3-oct-14-2022/
+    enabled: false
+  - title: Publications - Le Cercle des économistes
+    url: https://lecercledeseconomistes.fr/ouvrages/
+    enabled: false
+  - title: Project Syndicate
+    url: https://www.project-syndicate.org/
+    enabled: false
+  - title: Chief Economists Outlook | WEF
+    url: https://www.weforum.org/publications/chief-economists-outlook-january-2024/
+    enabled: false
+  - title: Tracking regulatory changes | Brookings
+    url: https://www.brookings.edu/articles/tracking-regulatory-changes-in-the-biden-era/?utm_campaign=Brookings%20Brief&utm_medium=email&utm_content=288933888&utm_source=hs_email
+    enabled: false
+  - title: China Economic Database - Bruegel
+    url: https://www.bruegel.org/dataset/china-economic-database
+    enabled: false
+  - title: EMC | Banque de France
+    url: https://www.banque-france.fr/fr/publications-et-statistiques/publications?sub_format%5B104%5D=104&start-date=&end-date=
+    enabled: false
+  - title: PMI® Commentary | S&P Global
+    url: https://www.spglobal.com/marketintelligence/en/mi/research-analysis/pmi.html
+    enabled: false
+  - title: Global Oil & Gas Exit List
+    url: https://gogel.org/
+    enabled: false
+  - title: Global Coal Exit List
+    url: https://www.coalexit.org/
+    enabled: false
+  - title: Publications | Institut Montaigne
+    url: https://www.institutmontaigne.org/
+    enabled: false
+  - title: CEPII - Publications
+    url: http://www.cepii.fr/CEPII/fr/publications/publicat.asp
+    enabled: false
+  - title: VOX, CEPR Policy Portal
+    url: https://voxeu.org/epubs
+    enabled: false
+  - title: Fipeco
+    url: https://fipeco.fr/
+    enabled: false
+  - title: Les publications | France Stratégie
+    url: https://www.strategie.gouv.fr/publications
+    enabled: false
+- category: Press & Media
+  sources:
+  - title: Press releases | ACEA
+    url: https://www.acea.auto/nav/?content=press-releases
+    enabled: false
+  - title: Franceinfo - En direct
+    url: https://www.francetvinfo.fr/en-direct/
+    enabled: false
+  - title: Commentary and Insights | Raymond James
+    url: https://www.raymondjames.com/commentary-and-insights
+    enabled: false
+  - title: Surveys | NABE
+    url: https://www.nabe.com/NABE/Surveys/NABE_Outlook/NABE/Surveys/Surveys.aspx?hkey=ed2561b9-6e45-4dc1-98e0-5611f537d47e
+    enabled: false
+  - title: Associated Press News
+    url: https://apnews.com/
+    enabled: false
+  - title: China's vehicle sales boom - Xinhua
+    url: https://english.news.cn/20231011/7ccf24f11be440f4a142844742266436/c.html
+    enabled: false
+  - title: Xinhua New Media
+    url: https://english.news.cn/xinhuanews/index.htm
+    enabled: false
+  - title: Fed’s Beige Book - MarketWatch
+    url: https://www.marketwatch.com/story/feds-beige-book-finds-signs-of-cooling-labor-market-across-most-of-the-country-888d0706?mod=economic-report
+    enabled: false
+  - title: Indice S&P 500 - Investing.com
+    url: https://fr.investing.com/indices/us-spx-500
+    enabled: false
+  - title: STOXX 600 - Investing.com
+    url: https://fr.investing.com/indices/stoxx-600
+    enabled: false
+  - title: US 10 Year Treasury Yield
+    url: https://www.investing.com/rates-bonds/u.s.-10-year-bond-yield
+    enabled: false
+  - title: Germany 10 Year Bond Yield
+    url: https://fr.investing.com/rates-bonds/germany-10-year-bond-yield
+    enabled: false
+  - title: Brent Crude Oil Futures
+    url: https://www.investing.com/commodities/brent-oil
+    enabled: false
+  - title: Press Releases - Gas Infrastructure Europe
+    url: https://www.gie.eu/press-corner/press-releases/
+    enabled: false

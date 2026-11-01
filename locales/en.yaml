@@ -1,0 +1,120 @@
+# English translations for eco-x (EconoScope)
+# Default language
+
+app:
+  name: "EconoScope"
+  tagline: "Economic Data Platform"
+  description: "Browse and monitor data sources and datasets from economic data providers"
+  copyright: "EconoScope {year} - Economic Data Platform"
+
+nav:
+  data_sources: "Data Sources"
+  datasets: "Datasets"
+  news: "Economical News"
+
+status:
+  connecting: "Connecting..."
+  live: "Live"
+  disconnected: "Disconnected"
+  loading: "Loading..."
+
+sources:
+  title: "Data Sources"
+  add_button: "Add Data Source"
+  empty_title: "No Data Sources Yet"
+  empty_description: "No data sources available yet. Fetch some datasets using the CLI to get started!"
+  in_db: "in DB"
+  available: "available"
+  never_fetched: "Never fetched"
+
+datasets:
+  title: "Datasets"
+  all_datasets: "All Datasets"
+  datasets_for: "{source} Datasets"
+  search_placeholder: "Search by code or name..."
+  filter_all: "All"
+  filter_downloaded: "Downloaded"
+  filter_available: "Available"
+  all_sources: "All Sources"
+  reset_all: "Reset all"
+  showing_of: "Showing {count} of {total} datasets"
+  filtered: "(filtered)"
+  available_count: "{total} datasets available (Page {page} of {total_pages})"
+  available_simple: "{count} dataset available"
+  available_simple_plural: "{count} datasets available"
+  empty_title: "No Datasets Found"
+  empty_filtered_title: "No Datasets Match Your Filters"
+  empty_description: "No datasets found for {source}. Fetch some datasets using the CLI!"
+  empty_filtered_description: "Try adjusting your search or filter criteria."
+  clear_filters: "Clear Filters"
+  back_to_sources: "Back to Sources"
+  view_details: "View Details"
+  view_all_sources: "View all sources"
+  never: "Never"
+
+table:
+  source: "Source"
+  code: "Code"
+  name: "Name"
+  status: "Status"
+  last_fetched: "Last Fetched"
+  actions: "Actions"
+  previous: "Previous"
+  next: "Next"
+  page_of: "Page {page} of {total}"
+
+modal:
+  close: "Close"
+  cancel: "Cancel"
+
+dataset_modal:
+  info_title: "Dataset Information"
+  code: "Code"
+  source: "Source"
+  description: "Description"
+  no_description: "No description available"
+  extended_description: "Extended Description"
+  methodology: "Methodology & Metadata"
+  read_docs: "Read full documentation"
+  last_fetched: "Last Fetched"
+  fetch_history: "Recent Fetch History"
+  no_history: "No fetch history available"
+  records: "records"
+  download: "Download the dataset"
+  download_hint: "Downloads now and updates at each boot"
+  purge: "Purge dataset"
+  purge_hint: "Removes all data for this dataset"
+  purge_confirm: "Are you sure you want to delete all data for this dataset?"
+  # Legacy keys (kept for backwards compatibility)
+  select: "Select Dataset"
+  selected: "Selected"
+  select_hint: "Click to add to auto-fetch list"
+  selected_hint: "Will be updated at next boot"
+
+catalog:
+  title: "Data Source Catalog"
+  description: "Manage data sources - toggle activation and add to your instance."
+  add: "Add"
+  added: "Added"
+  datasets: "datasets"
+  api_key_required: "API key required"
+  public_api: "Public API"
+  empty: "No data sources available in the catalog."
+  activated: "Activated"
+  deactivated: "Deactivated"
+  toggle_activation: "Toggle activation"
+
+news:
+  title: "Economical News Sources"
+  sources_in_categories: "{sources} sources in {categories} categories"
+  empty_title: "No News Sources Yet"
+  empty_description: "No news sources have been imported. Check config/news.yaml."
+
+error:
+  load_failed: "Failed to load content. Please try again."
+  generic: "An error occurred"
+
+language:
+  en: "English"
+  fr: "Francais"
+  select: "Language"

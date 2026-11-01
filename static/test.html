@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8">
+    <h1 class="text-2xl mb-4">API Test</h1>
+    <button id="testBtn" class="bg-blue-500 text-white px-4 py-2 rounded">Load Sources</button>
+    <div id="result" class="mt-4"></div>
+
+    <script>
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/sources');
+                const html = await response.text();
+                document.getElementById('result').innerHTML = html;
+                console.log('Success!', html);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = '<p class="text-red-500">Error: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+# ecox-data-platform Containerfile
+# Multi-stage build for minimal production image
+
+# Build stage
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install uv for fast dependency management
+RUN pip install uv
+
+# Copy shared package first (dependency)
+COPY ecox-shared/ /build/ecox-shared/
+
+# Copy platform package
+COPY ecox-data-platform/pyproject.toml /build/ecox-data-platform/
+COPY ecox-data-platform/src/ /build/ecox-data-platform/src/
+
+# Install shared package first
+WORKDIR /build/ecox-shared
+RUN uv pip install --system --no-cache-dir .
+
+# Install platform package (ecox-shared already installed)
+WORKDIR /build/ecox-data-platform
+# Remove workspace source reference since ecox-shared is now a real installed package
+RUN sed -i '/\[tool.uv.sources\]/,/^$/d' pyproject.toml && \
+    uv pip install --system --no-cache-dir .
+
+# Production stage
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+
+# Copy application code and ensure readable permissions
+# (fixes issues where dev tools create files with 600 permissions)
+COPY ecox-data-platform/src/ /app/src/
+COPY ecox-shared/src/ /app/shared/
+RUN chmod -R a+rX /app/src /app/shared
+
+# Set Python path
+ENV PYTHONPATH=/app/src:/app/shared
+ENV PYTHONUNBUFFERED=1
+
+# Create non-root user
+RUN useradd --create-home appuser
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
+
+# Run the application
+CMD ["python", "-m", "uvicorn", "ecox_platform.main:app", "--host", "0.0.0.0", "--port", "8000"]

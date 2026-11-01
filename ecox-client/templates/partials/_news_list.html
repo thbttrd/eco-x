@@ -1,0 +1,276 @@
+{% if toast %}
+<!-- Toast notification trigger -->
+<script>
+    window.dispatchEvent(new CustomEvent('show-toast', {
+        detail: { message: {{ toast.message|tojson }}, type: {{ toast.type|tojson }} }
+    }));
+</script>
+{% endif %}
+
+{% if not categories %}
+<!-- Empty state -->
+<div class="flex flex-col items-center justify-center py-16 px-4">
+    <div class="text-center max-w-md">
+        <svg class="mx-auto h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+        </svg>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ t('news.empty_title') }}</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            {{ t('news.empty_description') }}
+        </p>
+    </div>
+</div>
+{% else %}
+
+<!-- News header -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('news.title') }}</h2>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {% set total_entries = categories|sum(attribute='total_entries') %}
+            {% if total_entries > 0 %}
+            {{ total_entries }} {{ t('news.entries_total') }}
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<!-- News Tree: Category → Source → Section → Year → Entry (full width, single panel) -->
+<div class="space-y-4" x-data="newsTree()">
+
+    {% for category in categories %}
+    {# Only show categories that have at least one active source #}
+    {% set active_sources = category.sources|selectattr('is_active')|list %}
+    {% if active_sources|length > 0 %}
+
+    <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <!-- Category header (expandable) -->
+        <button
+            type="button"
+            class="w-full bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-800 px-4 py-3 border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            @click="toggleCategory({{ category.id }})"
+        >
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <!-- Expand/collapse icon -->
+                    <svg
+                        class="h-4 w-4 text-slate-500 dark:text-slate-400 transition-transform duration-200"
+                        :class="{ 'rotate-90': expandedCategories[{{ category.id }}] }"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <!-- Category icon -->
+                    <svg class="h-5 w-5 text-slate-500 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <h3 class="font-semibold text-slate-800 dark:text-slate-200 text-left">{{ category.name }}</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+                        {{ active_sources|length }} {{ t('news.sources') }}
+                    </span>
+                </div>
+            </div>
+        </button>
+
+        <!-- Sources (collapsed by default) -->
+        <div
+            x-show="expandedCategories[{{ category.id }}]"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 -translate-y-2"
+            x-transition:enter-end="opacity-100 translate-y-0"
+            class="divide-y divide-slate-100 dark:divide-slate-700"
+        >
+            {% for source in category.sources %}
+            {% if source.is_active %}
+            <div class="border-l-4 border-blue-200 dark:border-blue-800 ml-4">
+                <!-- Source row (expandable) -->
+                <button
+                    type="button"
+                    class="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                    @click="toggleSource({{ source.id }})"
+                >
+                    <!-- Expand icon -->
+                    <svg
+                        class="h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform duration-200 flex-shrink-0"
+                        :class="{ 'rotate-90': expandedSources[{{ source.id }}] }"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <!-- Source icon -->
+                    <svg class="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                    <span class="flex-1 text-sm text-slate-700 dark:text-slate-300 text-left font-medium">
+                        {{ source.title }}
+                    </span>
+                    <span class="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">
+                        {{ source.section_count }} {{ t('news.sections') if source.section_count != 1 else t('news.section') }}
+                    </span>
+                </button>
+
+                <!-- Sections (collapsed by default) -->
+                <div
+                    x-show="expandedSources[{{ source.id }}]"
+                    x-transition
+                    class="pl-6 border-l-2 border-slate-100 dark:border-slate-700 ml-4"
+                >
+                    {% for section in source.sections %}
+                    {% if section.is_active %}
+                    <div>
+                        <!-- Section row (expandable to show entries) -->
+                        <div class="flex items-center">
+                            <button
+                                type="button"
+                                class="flex-1 flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors"
+                                @click="toggleSection({{ section.id }})"
+                            >
+                                <!-- Expand/collapse icon -->
+                                <svg
+                                    class="h-3 w-3 text-slate-400 transition-transform duration-200 flex-shrink-0"
+                                    :class="{ 'rotate-90': expandedSections[{{ section.id }}] }"
+                                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+
+                                <!-- Status indicator -->
+                                {% if section.last_fetch_status == 'success' %}
+                                <div class="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" title="{{ t('news.active') }}"></div>
+                                {% elif section.last_fetch_status == 'error' %}
+                                <div class="h-2 w-2 rounded-full bg-red-500 flex-shrink-0" title="{{ section.last_fetch_error or t('news.error') }}"></div>
+                                {% else %}
+                                <div class="h-2 w-2 rounded-full bg-yellow-500 flex-shrink-0" title="{{ t('news.pending') }}"></div>
+                                {% endif %}
+
+                                <!-- Section title -->
+                                <span class="flex-1 text-sm text-slate-600 dark:text-slate-400 text-left">
+                                    {{ section.title }}
+                                </span>
+
+                                <!-- Entry count badge -->
+                                {% if section.entry_count > 0 %}
+                                <span class="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                    {{ section.entry_count }}
+                                </span>
+                                {% endif %}
+                            </button>
+
+                            <!-- External link (opens source URL) -->
+                            <a
+                                href="{{ section.url }}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                                title="{{ t('news.open_source') }}"
+                            >
+                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                            </a>
+
+                            <!-- Refresh button -->
+                            <button
+                                type="button"
+                                class="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                                hx-post="/api/news/sections/{{ section.id }}/refresh"
+                                hx-target="#news-content"
+                                hx-swap="innerHTML"
+                                title="{{ t('news.refresh_section') }}"
+                            >
+                                <svg class="h-4 w-4 htmx-indicator-rotate" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Year-grouped entries container (lazy-loaded when section expands) -->
+                        <div
+                            x-show="expandedSections[{{ section.id }}]"
+                            x-transition
+                            class="pl-4 ml-2"
+                            hx-get="/api/news/sections/{{ section.id }}/entries"
+                            hx-trigger="revealed once"
+                            hx-swap="innerHTML"
+                        >
+                            <!-- Loading skeleton (replaced by htmx when revealed) -->
+                            <div class="py-2 px-2">
+                                <div class="animate-pulse space-y-2">
+                                    <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                                    <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    {% endif %}
+    {% endfor %}
+
+</div>
+
+<!-- Modal container (for entry detail) -->
+<div id="modal-container"></div>
+
+<script>
+function newsTree() {
+    // Load state from sessionStorage or initialize empty
+    const stored = sessionStorage.getItem('newsTreeState');
+    const initial = stored ? JSON.parse(stored) : {};
+
+    return {
+        expandedCategories: initial.categories || {},
+        expandedSources: initial.sources || {},
+        expandedSections: initial.sections || {},
+
+        toggleCategory(id) {
+            this.expandedCategories[id] = !this.expandedCategories[id];
+            this.saveState();
+        },
+
+        toggleSource(id) {
+            this.expandedSources[id] = !this.expandedSources[id];
+            this.saveState();
+        },
+
+        toggleSection(id) {
+            this.expandedSections[id] = !this.expandedSections[id];
+            this.saveState();
+        },
+
+        saveState() {
+            sessionStorage.setItem('newsTreeState', JSON.stringify({
+                categories: this.expandedCategories,
+                sources: this.expandedSources,
+                sections: this.expandedSections
+            }));
+        }
+    };
+}
+</script>
+
+<style>
+.htmx-request .htmx-indicator-rotate {
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+
+{% endif %}

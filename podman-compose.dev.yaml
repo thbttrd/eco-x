@@ -1,0 +1,25 @@
+# podman-compose.dev.yaml
+# Development overrides for hot reloading frontend assets
+#
+# Usage:
+#   podman-compose -f podman-compose.yaml -f podman-compose.dev.yaml up -d client
+#
+# This mounts templates, static files, and locales as volumes so changes
+# are reflected immediately without rebuilding the container.
+#
+# Note: Python code changes still require a container restart:
+#   podman-compose restart client
+
+version: "3.8"
+
+services:
+  client:
+    volumes:
+      - client_data:/app/data
+      # Hot reload mounts - templates, static, and locales
+      - ./ecox-client/templates:/app/templates:ro
+      - ./ecox-client/static:/app/static:ro
+      - ./ecox-client/locales:/app/locales:ro
+    environment:
+      # Ensure Jinja2 doesn't cache templates in dev mode
+      ECOX_CLIENT_DEBUG: "true"
